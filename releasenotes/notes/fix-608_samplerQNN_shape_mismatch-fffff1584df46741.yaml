@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Added wording for :class:`.SamplerQNN` interpret callable which was not very clear in documentation.
+    Specifically, if an 'interpret' function is provided, an 'output_shape' must also be provided,
+    otherwise an error is thrown.

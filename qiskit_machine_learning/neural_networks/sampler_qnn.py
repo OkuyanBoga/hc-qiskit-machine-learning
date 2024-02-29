@@ -157,8 +157,9 @@ class SamplerQNN(NeuralNetwork):
             sparse: Returns whether the output is sparse or not.
             interpret: A callable that maps the measured integer to another unsigned integer or
                 tuple of unsigned integers. These are used as new indices for the (potentially
-                sparse) output array. If no interpret function is
-                passed, then an identity function will be used by this neural network.
+                sparse) output array. If no interpret function is passed, then an identity 
+                function will be used by this neural network. If an interpret function is given 
+                an output_shape must also be provided, otherwise an error is thrown.
             output_shape: The output shape of the custom interpretation. It is ignored if no custom
                 interpret method is provided where the shape is taken to be
                 ``2^circuit.num_qubits``.
