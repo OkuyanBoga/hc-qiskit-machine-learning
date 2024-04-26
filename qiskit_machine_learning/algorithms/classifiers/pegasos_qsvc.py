@@ -232,6 +232,13 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
 
         return y
 
+    def predict_proba(self, X: np.ndarray):
+        values = self.decision_function(X)     
+        print('decision func vals', values)
+        values = 1/(1 + np.exp(-1*values))
+        values = np.dstack((1-values, values))
+        return values
+
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         """
         Evaluate the decision function for the samples in X.

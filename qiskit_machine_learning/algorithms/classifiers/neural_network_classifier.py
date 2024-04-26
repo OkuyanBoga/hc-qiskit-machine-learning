@@ -138,23 +138,30 @@ class NeuralNetworkClassifier(TrainableModel, ClassifierMixin):
 
         return function
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray, classify: bool = True) -> np.ndarray:
         self._check_fitted()
-
         X, _ = self._validate_input(X)
-
-        if self._neural_network.output_shape == (1,):
-            predict = np.sign(self._neural_network.forward(X, self._fit_result.x))
+        if classify:
+            if self._neural_network.output_shape == (1,):
+                predict = np.sign(self._neural_network.forward(X, self._fit_result.x))
+            else:
+                forward = self._neural_network.forward(X, self._fit_result.x)
+                predict_ = np.argmax(forward, axis=1)
+                if self._one_hot:
+                    predict = np.zeros(forward.shape)
+                    for i, v in enumerate(predict_):
+                        predict[i, v] = 1
+                else:
+                    predict = predict_
+            return self._validate_output(predict)
         else:
             forward = self._neural_network.forward(X, self._fit_result.x)
-            predict_ = np.argmax(forward, axis=1)
-            if self._one_hot:
-                predict = np.zeros(forward.shape)
-                for i, v in enumerate(predict_):
-                    predict[i, v] = 1
-            else:
-                predict = predict_
-        return self._validate_output(predict)
+            return forward
+        
+    
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        proba = self.predict(X, classify=False)
+        return proba
 
     def score(self, X: np.ndarray, y: np.ndarray, sample_weight: np.ndarray | None = None) -> float:
         return ClassifierMixin.score(self, X, y, sample_weight)
