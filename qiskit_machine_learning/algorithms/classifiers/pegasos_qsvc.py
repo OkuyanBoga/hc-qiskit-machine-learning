@@ -233,10 +233,31 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         return y
 
     def predict_proba(self, X: np.ndarray):
-        values = self.decision_function(X)     
-        print('decision func vals', values)
-        values = 1/(1 + np.exp(-1*values))
-        values = np.dstack((1-values, values))
+        """
+        Extract class prediction probabilities.
+
+        Args:
+            X: Features. For a callable kernel (an instance of
+               :class:`~qiskit_machine_learning.kernels.BaseKernel`) the shape
+               should be ``(m_samples, n_features)``, for a precomputed kernel the shape should be
+               ``(m_samples, n_samples)``. Where ``m`` denotes the set to be predicted and ``n`` the
+               size of the training set. In that case, the kernel values in X have to be calculated
+               with respect to the elements of the set to be predicted and the training set.
+
+        Returns:
+            An array of the shape (n_samples, 2), the predicted class probabilites for each sample in X.
+            The decision function is not bounded by 0 and 1 so to turn the decision function output into
+            2 probabilities that add to unity a sigmoid is implemented.
+
+        Raises:
+            QiskitMachineLearningError:
+                - predict is called before the model has been fit.
+            ValueError:
+                - Pre-computed kernel matrix has the wrong shape and/or dimension.
+        """
+        values = self.decision_function(X)
+        values = 1 / (1 + np.exp(-1 * values))
+        values = np.dstack((1 - values, values))
         return values
 
     def decision_function(self, X: np.ndarray) -> np.ndarray:
