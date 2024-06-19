@@ -197,7 +197,8 @@ class TestNeuralNetworkClassifier(QiskitMachineLearningTestCase):
         Returns:
             tuple[np.ndarray, np.ndarray]: A tuple containing two numpy arrays:
                 - features: An array of shape ``(6, num_inputs)`` with randomly generated feature values.
-                - labels: An array of shape ``(6,)`` with categorical labels (0, 1, or 2) for each sample.
+                - labels: An array of shape ``(6,)`` with categorical labels (0, 1, or 2) for each
+                    sample.
         """
         # Fixed number of samples for consistency
         num_samples = 6
@@ -308,6 +309,7 @@ class TestNeuralNetworkClassifier(QiskitMachineLearningTestCase):
 
         features, labels = self._generate_data(num_inputs)
         labels = labels.astype(str)
+
         # Convert to categorical labels
         labels[labels == "0.0"] = "A"
         labels[labels == "1.0"] = "B"
@@ -432,7 +434,7 @@ class TestNeuralNetworkClassifier(QiskitMachineLearningTestCase):
         """Test that trying to train a binary classifier with multiclass data raises an error."""
 
         optimizer = L_BFGS_B(maxiter=5)
-        qnn, num_inputs, num_parameters = self._create_sampler_qnn(output_shape=1)
+        qnn, _, num_parameters = self._create_sampler_qnn(output_shape=1)
         classifier = self._create_classifier(
             qnn,
             num_parameters,

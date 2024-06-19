@@ -255,8 +255,10 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
                 probabilities (in the range :math:`[0, 1]`) for each sample in ``X``.
         """
         values = self.decision_function(X)
+
         probabilities = 1 / (1 + np.exp(-values))  # Sigmoid activation function
-        probabilities = np.dstack((1 - probabilities, probabilities))
+        probabilities = np.dstack((1 - probabilities, probabilities))[0]
+
         return probabilities
 
     def decision_function(self, X: np.ndarray) -> np.ndarray:
