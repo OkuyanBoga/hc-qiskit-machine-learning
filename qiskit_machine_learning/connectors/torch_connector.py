@@ -153,7 +153,9 @@ class TorchConnector(Module):
 
                     # todo: replace output type from DOK to COO?
                     result = cast(COO, cast(SparseArray, result).asformat("coo"))
-                    result_tensor = torch.sparse_coo_tensor(result.coords, result.data)
+                    result_tensor = torch.sparse_coo_tensor(  # pylint: disable=E1101
+                        result.coords, result.data
+                    )
                 else:
                     raise RuntimeError(
                         "TorchConnector configured as sparse, the network must be sparse as well"
@@ -167,7 +169,7 @@ class TorchConnector(Module):
 
                     # cast is required by mypy
                     result = cast(SparseArray, result).todense()
-                result_tensor = torch.as_tensor(result, dtype=torch.float)
+                result_tensor = torch.as_tensor(result, dtype=torch.float)  # pylint: disable=E1101
 
             # if the input was not a batch, then remove the batch-dimension from the result,
             # since the neural network will always treat input as a batch and cast to a
@@ -249,12 +251,16 @@ class TorchConnector(Module):
                     if neural_network.sparse:
                         # convert to dense
                         input_grad = input_grad.todense()
-                    input_grad = torch.as_tensor(input_grad, dtype=torch.float)
+                    input_grad = torch.as_tensor(  # pylint: disable=E1101
+                        input_grad, dtype=torch.float  # pylint: disable=E1101
+                    )
 
                     # same as above
                     n_dimension = max(grad_output.detach().cpu().ndim, input_grad.ndim)
                     signature = _get_einsum_signature(n_dimension)
-                    input_grad = torch.einsum(signature, grad_output.detach().cpu(), input_grad)
+                    input_grad = torch.einsum(  # pylint: disable=E1101
+                        signature, grad_output.detach().cpu(), input_grad
+                    )
 
                 # place the resulting tensor to the device where they were stored
                 input_grad = input_grad.to(input_data.device)
@@ -293,11 +299,15 @@ class TorchConnector(Module):
                     if neural_network.sparse:
                         # convert to dense
                         weights_grad = weights_grad.todense()
-                    weights_grad = torch.as_tensor(weights_grad, dtype=torch.float)
+                    weights_grad = torch.as_tensor(  # pylint: disable=E1101
+                        weights_grad, dtype=torch.float  # pylint: disable=E1101
+                    )
                     # same as above
                     n_dimension = max(grad_output.detach().cpu().ndim, weights_grad.ndim)
                     signature = _get_einsum_signature(n_dimension, for_weights=True)
-                    weights_grad = torch.einsum(signature, grad_output.detach().cpu(), weights_grad)
+                    weights_grad = torch.einsum(  # pylint: disable=E1101
+                        signature, grad_output.detach().cpu(), weights_grad
+                    )
 
                 # place the resulting tensor to the device where they were stored
                 weights_grad = weights_grad.to(weights.device)
@@ -341,7 +351,9 @@ class TorchConnector(Module):
                 "TorchConnector configured as sparse, the network must be sparse as well"
             )
 
-        weight_param = torch.nn.Parameter(torch.zeros(neural_network.num_weights))
+        weight_param = torch.nn.Parameter(  # pylint: disable=E1101
+            torch.zeros(neural_network.num_weights)  # pylint: disable=E1101
+        )
         # Register param. in graph following PyTorch naming convention
         self.register_parameter("weight", weight_param)
         # If `weight_param` is assigned to `self._weights` after registration,
@@ -354,7 +366,9 @@ class TorchConnector(Module):
         if initial_weights is None:
             self._weights.data.uniform_(-1, 1)
         else:
-            self._weights.data = torch.tensor(initial_weights, dtype=torch.float)
+            self._weights.data = torch.tensor(  # pylint: disable=E1101
+                initial_weights, dtype=torch.float  # pylint: disable=E1101
+            )
 
     @property
     def neural_network(self) -> NeuralNetwork:
@@ -380,7 +394,7 @@ class TorchConnector(Module):
         Returns:
             Result of forward pass of this model.
         """
-        input_ = input_data if input_data is not None else torch.zeros(0)
+        input_ = input_data if input_data is not None else torch.zeros(0)  # pylint: disable=E1101
         return TorchConnector._TorchNNFunction.apply(
             input_, self._weights, self._neural_network, self._sparse
         )

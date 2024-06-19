@@ -68,32 +68,32 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         """
         Args:
             quantum_kernel: A quantum kernel to be used for classification.
-                Has to be ``None`` when a precomputed kernel is used. If None,
+                Has to be ``None`` when a pre-computed kernel is used. If None,
                 and ``precomputed`` is ``False``, the quantum kernel will default to
                 :class:`~qiskit_machine_learning.kernels.FidelityQuantumKernel`.
             C: Positive regularization parameter. The strength of the regularization is inversely
                 proportional to C. Smaller ``C`` induce smaller weights which generally helps
-                preventing overfitting. However, due to the nature of this algorithm, some of the
+                prevent overfitting. However, due to the nature of this algorithm, some of the
                 computation steps become trivial for larger ``C``. Thus, larger ``C`` improve
                 the performance of the algorithm drastically. If the data is linearly separable
                 in feature space, ``C`` should be chosen to be large. If the separation is not
                 perfect, ``C`` should be chosen smaller to prevent overfitting.
             num_steps: The number of steps in the Pegasos algorithm. There is no early stopping
                 criterion. The algorithm iterates over all steps.
-            precomputed: A boolean flag indicating whether a precomputed kernel is used. Set it to
-                ``True`` in case of precomputed kernel.
+            pre-computed: A boolean flag indicating whether a pre-computed kernel is used. Set it to
+                ``True`` in case of pre-computed kernel.
             seed: A seed for the random number generator.
 
         Raises:
             ValueError:
                 - if ``quantum_kernel`` is passed and ``precomputed`` is set to ``True``. To use
-                a precomputed kernel, ``quantum_kernel`` has to be of the ``None`` type.
+                a pre-computed kernel, ``quantum_kernel`` has to be of the ``None`` type.
                 - if C is not a positive number.
         """
 
         if precomputed:
             if quantum_kernel is not None:
-                raise ValueError("'quantum_kernel' has to be None to use a precomputed kernel")
+                raise ValueError("'quantum_kernel' has to be None to use a pre-computed kernel.")
         else:
             if quantum_kernel is None:
                 quantum_kernel = FidelityQuantumKernel()
@@ -107,7 +107,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         if C > 0:
             self.C = C
         else:
-            raise ValueError(f"C has to be a positive number, found {C}.")
+            raise ValueError(f"'C' has to be a positive number, found {C}.")
 
         # these are the parameters being fit and are needed for prediction
         self._alphas: Dict[int, int] | None = None
@@ -133,7 +133,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         Args:
             X: Train features. For a callable kernel (an instance of
                :class:`~qiskit_machine_learning.kernels.BaseKernel`) the shape
-               should be ``(n_samples, n_features)``, for a precomputed kernel the shape should be
+               should be ``(n_samples, n_features)``, for a pre-computed kernel the shape should be
                ``(n_samples, n_samples)``.
             y: shape (n_samples), train labels . Must not contain more than two unique labels.
             sample_weight: this parameter is not supported, passing a value raises an error.
@@ -149,7 +149,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
                 - Pre-computed kernel matrix has the wrong shape and/or dimension.
 
             NotImplementedError:
-                - when a sample_weight which is not None is passed.
+                - When a `sample_weight` which is not None is passed.
         """
         # check whether the data have the right format
         if np.ndim(X) != 2:
@@ -162,7 +162,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
             raise ValueError("'X' and 'y' have to contain the same number of samples")
         if self._precomputed and X.shape[0] != X.shape[1]:
             raise ValueError(
-                "For a precomputed kernel, X should be in shape (n_samples, n_samples)"
+                "For a pre-computed kernel, X should be in shape (n_samples, n_samples)"
             )
         if sample_weight is not None:
             raise NotImplementedError(
@@ -193,12 +193,12 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
             value = self._compute_weighted_kernel_sum(i, X, training=True)
 
             if (self._label_map[y[i]] * self.C / step) * value < 1:
-                # only way for a component of alpha to become non zero
+                # only way for a component of alpha to become non-zero
                 self._alphas[i] = self._alphas.get(i, 0) + 1
 
         self.fit_status_ = PegasosQSVC.FITTED
 
-        logger.debug("fit completed after %s", str(datetime.now() - t_0)[:-7])
+        logger.debug("Fit completed after %s", str(datetime.now() - t_0)[:-7])
 
         return self
 
@@ -208,66 +208,65 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         Perform classification on samples in X.
 
         Args:
-            X: Features. For a callable kernel (an instance of
-               :class:`~qiskit_machine_learning.kernels.BaseKernel`) the shape
-               should be ``(m_samples, n_features)``, for a precomputed kernel the shape should be
-               ``(m_samples, n_samples)``. Where ``m`` denotes the set to be predicted and ``n`` the
-               size of the training set. In that case, the kernel values in X have to be calculated
-               with respect to the elements of the set to be predicted and the training set.
+            X (np.ndarray): Input features. For a callable kernel (an instance of
+                :class:`~qiskit_machine_learning.kernels.BaseKernel`), the shape
+                should be ``(m_samples, n_features)``. For a pre-computed kernel, the shape should be
+                ``(m_samples, n_samples)``. Here, ``m_*`` denotes the set to be
+                predicted, and ``n_*`` denotes the size of the training set. In the case of a
+                pre-computed kernel, the kernel values in ``X`` must be calculated with respect to
+                the elements of the set to be predicted and the training set.
 
         Returns:
-            An array of the shape (n_samples), the predicted class labels for samples in X.
+            np.ndarray: An array of shape ``(n_samples,)``, representing the predicted class labels for
+                each sample in ``X``.
 
         Raises:
             QiskitMachineLearningError:
-                - predict is called before the model has been fit.
+                - If the :meth:`predict` method is called before the model has been fit.
             ValueError:
-                - Pre-computed kernel matrix has the wrong shape and/or dimension.
+                - If the pre-computed kernel matrix has the wrong shape and/or dimension.
         """
 
         t_0 = datetime.now()
         values = self.decision_function(X)
         y = np.array([self._label_pos if val > 0 else self._label_neg for val in values])
-        logger.debug("prediction completed after %s", str(datetime.now() - t_0)[:-7])
+        logger.debug("Prediction completed after %s", str(datetime.now() - t_0)[:-7])
 
         return y
 
-    def predict_proba(self, X: np.ndarray):
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
-        Extract class prediction probabilities.
+        Extract class prediction probabilities. The decision function values are
+        not bounded in the range :math:``[0, 1]``. Therefore, these values are
+        converted into probabilities using the sigmoid activation
+        function, which maps the real-valued outputs to the :math:``[0, 1]`` range.
 
         Args:
-            X: Features. For a callable kernel (an instance of
-               :class:`~qiskit_machine_learning.kernels.BaseKernel`) the shape
-               should be ``(m_samples, n_features)``, for a precomputed kernel the shape should be
-               ``(m_samples, n_samples)``. Where ``m`` denotes the set to be predicted and ``n`` the
-               size of the training set. In that case, the kernel values in X have to be calculated
-               with respect to the elements of the set to be predicted and the training set.
+            X (np.ndarray): Input features. For a callable kernel (an instance of
+                :class:`~qiskit_machine_learning.kernels.BaseKernel`), the shape
+                should be ``(m_samples, n_features)``. For a pre-computed kernel, the shape should be
+                ``(m_samples, n_samples)``. Here, ``m_*`` denotes the set to be
+                predicted, and ``n_*`` denotes the size of the training set. In the case of a
+                pre-computed kernel, the kernel values in ``X`` must be calculated with respect to
+                the elements of the set to be predicted and the training set.
 
         Returns:
-            An array of the shape (n_samples, 2), the predicted class probabilites for each sample in X.
-            The decision function is not bounded by 0 and 1 so to turn the decision function output into
-            2 probabilities that add to unity a sigmoid is implemented.
-
-        Raises:
-            QiskitMachineLearningError:
-                - predict is called before the model has been fit.
-            ValueError:
-                - Pre-computed kernel matrix has the wrong shape and/or dimension.
+            np.ndarray: An array of shape ``(n_samples, 2)``, representing the predicted class
+                probabilities (in the range :math:`[0, 1]`) for each sample in ``X``.
         """
         values = self.decision_function(X)
-        values = 1 / (1 + np.exp(-1 * values))
-        values = np.dstack((1 - values, values))
-        return values
+        probabilities = 1 / (1 + np.exp(-values))  # Sigmoid activation function
+        probabilities = np.dstack((1 - probabilities, probabilities))
+        return probabilities
 
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         """
-        Evaluate the decision function for the samples in X.
+        Evaluate the decision function for the samples in ``X``.
 
         Args:
             X: Features. For a callable kernel (an instance of
                :class:`~qiskit_machine_learning.kernels.BaseKernel`) the shape
-               should be ``(m_samples, n_features)``, for a precomputed kernel the shape should be
+               should be ``(m_samples, n_features)``, for a pre-computed kernel the shape should be
                ``(m_samples, n_samples)``. Where ``m`` denotes the set to be predicted and ``n`` the
                size of the training set. In that case, the kernel values in X have to be calculated
                with respect to the elements of the set to be predicted and the training set.
@@ -282,12 +281,12 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
                 - Pre-computed kernel matrix has the wrong shape and/or dimension.
         """
         if self.fit_status_ == PegasosQSVC.UNFITTED:
-            raise QiskitMachineLearningError("The PegasosQSVC has to be fit first")
+            raise QiskitMachineLearningError("The PegasosQSVC has to be fit first.")
         if np.ndim(X) != 2:
             raise ValueError("X has to be a 2D array")
         if self._precomputed and self._n_samples != X.shape[1]:
             raise ValueError(
-                "For a precomputed kernel, X should be in shape (m_samples, n_samples)"
+                "For a pre-computed kernel, X should be in shape (m_samples, n_samples)."
             )
 
         values = np.zeros(X.shape[0])
@@ -341,11 +340,11 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
     @quantum_kernel.setter
     def quantum_kernel(self, quantum_kernel: BaseKernel):
         """
-        Sets quantum kernel. If previously a precomputed kernel was set, it is reset to ``False``.
+        Sets quantum kernel. If previously a pre-computed kernel was set, it is reset to ``False``.
         """
 
         self._quantum_kernel = quantum_kernel
-        # quantum kernel is set, so we assume the kernel is not precomputed
+        # quantum kernel is set, so we assume the kernel is not pre-computed
         self._precomputed = False
 
         # reset training status
@@ -366,7 +365,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
 
     @property
     def precomputed(self) -> bool:
-        """Returns a boolean flag indicating whether a precomputed kernel is used."""
+        """Returns a boolean flag indicating whether a pre-computed kernel is used."""
         return self._precomputed
 
     @precomputed.setter
@@ -376,7 +375,7 @@ class PegasosQSVC(ClassifierMixin, SerializableModelMixin):
         :class:`~qiskit_machine_learning.kernels.FidelityQuantumKernel` is created."""
         self._precomputed = precomputed
         if precomputed:
-            # remove the kernel, a precomputed will
+            # remove the kernel, a pre-computed will
             self._quantum_kernel = None
         else:
             # re-create a new default quantum kernel
