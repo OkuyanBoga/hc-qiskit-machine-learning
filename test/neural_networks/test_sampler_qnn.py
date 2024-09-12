@@ -23,12 +23,15 @@ from ddt import ddt, idata
 
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import Sampler
+from qiskit_ibm_runtime import SamplerV2
+
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
 from qiskit_machine_learning.utils import algorithm_globals
 
 from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.sampler_qnn import SamplerQNN
 import qiskit_machine_learning.optionals as _optionals
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
 if _optionals.HAS_SPARSE:
     # pylint: disable=import-error
@@ -45,8 +48,9 @@ else:
 
 DEFAULT = "default"
 SHOTS = "shots"
+V2 = "v2"
 SPARSE = [True, False]
-SAMPLERS = [DEFAULT, SHOTS]
+SAMPLERS = [DEFAULT, SHOTS, V2]
 INTERPRET_TYPES = [0, 1, 2]
 BATCH_SIZES = [2]
 INPUT_GRADS = [True, False]
@@ -93,6 +97,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         # define sampler primitives
         self.sampler = Sampler()
         self.sampler_shots = Sampler(options={"shots": 100, "seed": 42})
+        self.sampler_v2 = SamplerV2(options={"shots": 100, "seed": 42})
 
         self.array_type = {True: SparseArray, False: np.ndarray}
 
@@ -106,6 +111,10 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             sampler = self.sampler_shots
         elif sampler_type == DEFAULT:
             sampler = self.sampler
+        elif sampler_type == V2:
+            sampler = self.sampler_v2
+            pm = generate_preset_pass_manager()
+            self.qc = pm.run(self.qc)
         else:
             sampler = None
 

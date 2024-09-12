@@ -23,6 +23,10 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseSampler
 from qiskit.providers import Options
 
+from qiskit.primitives import BaseSamplerV1
+from qiskit.primitives.base import BaseSamplerV2
+from qiskit.result import QuasiDistribution
+
 from ..base.base_sampler_gradient import BaseSamplerGradient
 from ..base.sampler_gradient_result import SamplerGradientResult
 
@@ -44,6 +48,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
         self,
         sampler: BaseSampler,
         epsilon: float,
+        num_qubits: int | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         options: Options | None = None,
@@ -52,6 +57,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
         Args:
             sampler: The sampler used to compute the gradients.
             epsilon: The offset size for the SPSA gradients.
+            num_qubits: Number of qubits for quasi_dist.
             batch_size: number of gradients to average.
             seed: The seed for a random perturbation vector.
             options: Primitive backend runtime options used for circuit execution.
@@ -68,7 +74,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
         self._epsilon = epsilon
         self._seed = np.random.default_rng(seed)
 
-        super().__init__(sampler, options)
+        super().__init__(sampler, options, num_qubits)
 
     def _run(
         self,
@@ -100,8 +106,15 @@ class SPSASamplerGradient(BaseSamplerGradient):
             job_param_values.extend(plus + minus)
             all_n.append(n)
 
+        cirs_params = [(job_circuits[i],job_param_values[i]) for i in range(n)]
         # Run the single job with all circuits.
-        job = self._sampler.run(job_circuits, job_param_values, **options)
+        if isinstance(self._sampler, BaseSamplerV1):
+            job = self._sampler.run(job_circuits, job_param_values, **options)
+        elif isinstance(self._sampler, BaseSamplerV2):
+            job = self._sampler.run(cirs_params)
+        else:
+            raise AlgorithmError("Wrong Sampler Type.") 
+        
         try:
             results = job.result()
         except Exception as exc:
@@ -112,7 +125,20 @@ class SPSASamplerGradient(BaseSamplerGradient):
         partial_sum_n = 0
         for i, n in enumerate(all_n):
             dist_diffs = {}
-            result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
+            if isinstance(self._sampler, BaseSamplerV1):
+                result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
+
+            elif isinstance(self._sampler, BaseSamplerV2):
+                result= []
+                for t in range(partial_sum_n,partial_sum_n + n):
+                    bitstring_counts = results[t].data.meas.get_counts()
+                    # Normalize the counts to probabilities
+                    total_shots = sum(bitstring_counts.values())
+                    probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
+                    # Convert to quasi-probabilities
+                    counts = QuasiDistribution(probabilities)
+                    result.append({k: v for k, v in counts.items() if int(k) < self._num_qubits})
+
             for j, (dist_plus, dist_minus) in enumerate(zip(result[: n // 2], result[n // 2 :])):
                 dist_diff: dict[int, float] = defaultdict(float)
                 for key, value in dist_plus.items():
@@ -132,5 +158,8 @@ class SPSASamplerGradient(BaseSamplerGradient):
             gradients.append(gradient)
             partial_sum_n += n
 
-        opt = self._get_local_options(options)
-        return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
+        if isinstance(self._sampler, BaseSamplerV1):
+            opt = self._get_local_options(options)
+            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
+        else:
+            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=options)
