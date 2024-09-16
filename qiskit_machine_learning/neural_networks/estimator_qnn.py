@@ -18,19 +18,23 @@ import logging
 from copy import copy
 from typing import Sequence
 
+from qiskit.primitives import BaseEstimatorV1
+from qiskit.primitives.base import BaseEstimatorV2
+
 import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseEstimator, Estimator, EstimatorResult
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
-from ..gradients import (
+from qiskit_algorithms.gradients import (
     BaseEstimatorGradient,
     EstimatorGradientResult,
     ParamShiftEstimatorGradient,
+    SPSAEstimatorGradient,
 )
 
-from ..circuit.library import QNNCircuit
-from ..exceptions import QiskitMachineLearningError
+from qiskit_machine_learning.circuit.library import QNNCircuit
+from qiskit_machine_learning.exceptions import QiskitMachineLearningError
 
 from .neural_network import NeuralNetwork
 
@@ -111,6 +115,7 @@ class EstimatorQNN(NeuralNetwork):
         weight_params: Sequence[Parameter] | None = None,
         gradient: BaseEstimatorGradient | None = None,
         input_gradients: bool = False,
+        num_qubits: int | None = None,
     ):
         r"""
         Args:
@@ -136,11 +141,12 @@ class EstimatorQNN(NeuralNetwork):
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` weight_parameters.
             gradient: The estimator gradient to be used for the backward pass.
                 If None, a default instance of the estimator gradient,
-                :class:`~qiskit_machine_learning.gradients.ParamShiftEstimatorGradient`, will be used.
+                :class:`~qiskit_algorithms.gradients.ParamShiftEstimatorGradient`, will be used.
             input_gradients: Determines whether to compute gradients with respect to input data.
                 Note that this parameter is ``False`` by default, and must be explicitly set to
                 ``True`` for a proper gradient computation when using
                 :class:`~qiskit_machine_learning.connectors.TorchConnector`.
+            num_qubits: Number of qubits for actual circuit.
 
         Raises:
             QiskitMachineLearningError: Invalid parameter values.
@@ -149,8 +155,13 @@ class EstimatorQNN(NeuralNetwork):
             estimator = Estimator()
         self.estimator = estimator
         self._org_circuit = circuit
+        if num_qubits is None:
+            self.num_qubits = circuit.num_qubits
+            print('Warning: No number of qubits provided, using it from provided circuit, if the circuit is transpiled this can be wrong and cause issues.')
+        else:
+            self.num_qubits = num_qubits
         if observables is None:
-            observables = SparsePauliOp.from_list([("Z" * circuit.num_qubits, 1)])
+            observables = SparsePauliOp.from_list([("Z" * num_qubits, 1)])
         if isinstance(observables, BaseOperator):
             observables = (observables,)
         self._observables = observables
@@ -208,23 +219,31 @@ class EstimatorQNN(NeuralNetwork):
 
     def _forward_postprocess(self, num_samples: int, result: EstimatorResult) -> np.ndarray:
         """Post-processing during forward pass of the network."""
-        return np.reshape(result.values, (-1, num_samples)).T
+        return np.reshape(result, (-1, num_samples)).T
 
     def _forward(
         self, input_data: np.ndarray | None, weights: np.ndarray | None
     ) -> np.ndarray | None:
         """Forward pass of the neural network."""
         parameter_values_, num_samples = self._preprocess_forward(input_data, weights)
-        job = self.estimator.run(
-            [self._circuit] * num_samples * self.output_shape[0],
-            [op for op in self._observables for _ in range(num_samples)],
-            np.tile(parameter_values_, (self.output_shape[0], 1)),
-        )
-        try:
-            results = job.result()
-        except Exception as exc:
-            raise QiskitMachineLearningError("Estimator job failed.") from exc
 
+        if isinstance(self.estimator, BaseEstimatorV1):
+            job = self.estimator.run(
+                [self._circuit] * num_samples * self.output_shape[0],
+                [op for op in self._observables for _ in range(num_samples)],
+                np.tile(parameter_values_, (self.output_shape[0], 1)),
+            )
+            results = job.result().values
+        elif isinstance(self.estimator, BaseEstimatorV2):
+            PUBs = []
+            for _ in range(num_samples):
+                for observable in self._observables:
+                    PUBs.append((self._circuit, [observable], parameter_values_))
+            job = self.estimator.run(PUBs, precision=0.001)
+            results = job.result()
+            results = [result.data.evs[0] for result in results]
+        else:
+            raise QiskitMachineLearningError("Wrong Estimator Type.")
         return self._forward_postprocess(num_samples, results)
 
     def _backward_postprocess(
@@ -270,12 +289,10 @@ class EstimatorQNN(NeuralNetwork):
 
             job = None
             if self._input_gradients:
-                job = self.gradient.run(circuits, observables, param_values)  # type: ignore[arg-type]
+                job = self.gradient.run(circuits, observables, param_values)
             elif len(parameter_values[0]) > self._num_inputs:
                 params = [self._circuit.parameters[self._num_inputs :]] * num_circuits
-                job = self.gradient.run(
-                    circuits, observables, param_values, parameters=params  # type: ignore[arg-type]
-                )
+                job = self.gradient.run(circuits, observables, param_values, parameters=params)
 
             if job is not None:
                 try:

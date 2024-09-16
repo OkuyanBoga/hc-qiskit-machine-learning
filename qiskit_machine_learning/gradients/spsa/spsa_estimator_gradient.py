@@ -1,6 +1,6 @@
 # This code is part of a Qiskit project.
 #
-# (C) Copyright IBM 2022, 2024.
+# (C) Copyright IBM 2022, 2023.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -22,6 +22,10 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseEstimator
 from qiskit.providers import Options
 from qiskit.quantum_info.operators.base_operator import BaseOperator
+
+from qiskit.primitives import BaseEstimatorV1
+from qiskit.primitives.base import BaseEstimatorV2
+from numpy import array
 
 from ..base.base_estimator_gradient import BaseEstimatorGradient
 from ..base.estimator_gradient_result import EstimatorGradientResult
@@ -102,33 +106,55 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
             job_param_values.extend(plus + minus)
             all_n.append(2 * self._batch_size)
 
-        # Run the single job with all circuits.
-        job = self._estimator.run(
-            job_circuits,
-            job_observables,
-            job_param_values,
-            **options,
-        )
+        PUBs = [(job_circuits[i],[observable],job_param_values[i]) for i in range(len(job_circuits))]
+
+        if isinstance(self._estimator, BaseEstimatorV1):
+            # Run the single job with all circuits.
+            job = self._estimator.run(
+                job_circuits,
+                job_observables,
+                job_param_values,
+                **options,
+            )
+            results = job.result()
+        elif isinstance(self._estimator, BaseEstimatorV2):
+            job = self._estimator.run(PUBs, precision=0.001, **options)
+        else:
+            raise AlgorithmError("Wrong Estimator Type.")
+        
         try:
             results = job.result()
         except Exception as exc:
             raise AlgorithmError("Estimator job failed.") from exc
-
         # Compute the gradients.
         gradients = []
         partial_sum_n = 0
         for i, n in enumerate(all_n):
-            result = results.values[partial_sum_n : partial_sum_n + n]
-            partial_sum_n += n
-            n = len(result) // 2
-            diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
-            # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
-            # since ``offset`` is a perturbation vector of 1s and -1s.
-            batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
-            # Take the average of the batch gradients.
-            gradient = np.mean(batch_gradients, axis=0)
-            indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
-            gradients.append(gradient[indices])
+            if isinstance(self._estimator, BaseEstimatorV1):
+                result = results.values[partial_sum_n : partial_sum_n + n]
+                partial_sum_n += n
+                n = len(result) // 2
+                diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
+                # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
+                # since ``offset`` is a perturbation vector of 1s and -1s.
+                batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
+                # Take the average of the batch gradients.
+                gradient = np.mean(batch_gradients, axis=0)
+                indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
+                gradients.append(gradient[indices])
+                opt = self._get_local_options(options)
+            if isinstance(self._estimator, BaseEstimatorV2):
+                result = array([float(result.data.evs[0]) for result in results])
+                partial_sum_n += n
+                n = len(result) // 2
+                diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
+                # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
+                # since ``offset`` is a perturbation vector of 1s and -1s.
+                batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
+                # Take the average of the batch gradients.
+                gradient = np.mean(batch_gradients, axis=0)
+                indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
+                gradients.append(gradient[indices])
+                opt = options
 
-        opt = self._get_local_options(options)
         return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)
