@@ -243,7 +243,7 @@ class EstimatorQNN(NeuralNetwork):
             results = job.result()
             results = [result.data.evs[0] for result in results]
         else:
-            raise QiskitMachineLearningError("Wrong Estimator Type.")
+            raise QiskitMachineLearningError(f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self.estimator)} instead.")
         return self._forward_postprocess(num_samples, results)
 
     def _backward_postprocess(
