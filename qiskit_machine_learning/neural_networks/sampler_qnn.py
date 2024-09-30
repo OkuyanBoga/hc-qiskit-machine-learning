@@ -310,7 +310,7 @@ class SamplerQNN(NeuralNetwork):
                 counts = QuasiDistribution(probabilities)
                 counts = {k: v for k, v in counts.items() if int(k) < self._output_shape[0]}
             else:
-                raise QiskitMachineLearningError("Wrong Sampler Type.")
+                raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")
             # evaluate probabilities
             for b, v in counts.items():
                 key = self._interpret(b)
