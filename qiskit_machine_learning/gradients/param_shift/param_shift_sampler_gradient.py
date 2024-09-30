@@ -103,7 +103,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         elif isinstance(self._sampler, BaseSamplerV2):
             job = self._sampler.run(cirs_params)
         else:
-            raise AlgorithmError("Wrong Sampler Type.") 
+            raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
         
         try:
             results = job.result()
