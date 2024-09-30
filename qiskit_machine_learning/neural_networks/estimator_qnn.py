@@ -33,7 +33,7 @@ from ..gradients import (
     SPSAEstimatorGradient,
 )
 
-from qiskit_machine_learning.circuit.library import QNNCircuit
+from ..circuit.library import QNNCircuit
 from qiskit_machine_learning.exceptions import QiskitMachineLearningError
 
 from .neural_network import NeuralNetwork
