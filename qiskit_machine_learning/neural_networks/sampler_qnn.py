@@ -406,7 +406,7 @@ class SamplerQNN(NeuralNetwork):
         elif isinstance(self.sampler, BaseSamplerV2):
             job = self.sampler.run([(self._circuit, parameter_values[i]) for i in range(num_samples)])
         else:
-            raise QiskitMachineLearningError("Wrong Sampler Type.")       
+            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")       
 
         try:
             results = job.result()
