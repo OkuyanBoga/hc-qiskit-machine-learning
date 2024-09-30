@@ -106,7 +106,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
             job_param_values.extend(plus + minus)
             all_n.append(n)
 
-        cirs_params = [(job_circuits[i],job_param_values[i]) for i in range(n)]
+        cirs_params = [(job_circuits[i], job_param_values[i]) for i in range(n)]
         # Run the single job with all circuits.
         if isinstance(self._sampler, BaseSamplerV1):
             job = self._sampler.run(job_circuits, job_param_values, **options)
