@@ -115,7 +115,7 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
         elif isinstance(self._estimator, BaseEstimatorV2):
             job = self._estimator.run(PUBs, precision=0.001, **options)
         else:
-            raise AlgorithmError("Wrong Estimator Type.")
+            raise AlgorithmError(f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self._estimator)} instead.")
         
         try:
             results = job.result()
