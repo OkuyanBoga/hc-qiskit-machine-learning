@@ -303,3 +303,4 @@ class EstimatorQNN(NeuralNetwork):
                 input_grad, weights_grad = self._backward_postprocess(num_samples, results)
 
         return input_grad, weights_grad
+        
