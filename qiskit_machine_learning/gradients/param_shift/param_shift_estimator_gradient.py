@@ -134,7 +134,7 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
                 partial_sum_n += n
                 opt = self._get_local_options(options)
             
-            if isinstance(self._estimator, BaseEstimatorV2):
+            elif isinstance(self._estimator, BaseEstimatorV2):
                 result = array([float(result.data.evs[0]) for result in results])
                 gradient_ = (result[: n // 2] - result[n // 2 :]) / 2
                 gradients.append(gradient_)
