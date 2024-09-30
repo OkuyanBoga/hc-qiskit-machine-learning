@@ -24,7 +24,7 @@ from typing import Callable, cast, Iterable, Sequence
 import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseSampler, SamplerResult, Sampler
-from qiskit_algorithms.gradients import (
+from ..gradients import (
     BaseSamplerGradient,
     ParamShiftSamplerGradient,
     SamplerGradientResult,
