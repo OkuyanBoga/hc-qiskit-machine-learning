@@ -31,7 +31,7 @@ from qiskit_algorithms.gradients import (
 )
 from qiskit.result import QuasiDistribution
 
-from qiskit_machine_learning.circuit.library import QNNCircuit
+from ..circuit.library import QNNCircuit
 from qiskit_machine_learning.exceptions import QiskitMachineLearningError
 import qiskit_machine_learning.optionals as _optionals
 
