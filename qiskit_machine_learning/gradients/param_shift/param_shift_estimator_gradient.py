@@ -101,7 +101,7 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             job_param_values.extend(param_shift_parameter_values)
             all_n.append(n)
 
-        PUBs = [(job_circuits[i],[observable],job_param_values[i]) for i in range(n)]
+        PUBs = [(job_circuits[i], [observable], job_param_values[i]) for i in range(n)]
 
         if isinstance(self._estimator, BaseEstimatorV1):
             # Run the single job with all circuits.
