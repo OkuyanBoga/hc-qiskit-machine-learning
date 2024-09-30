@@ -34,7 +34,7 @@ from ..gradients import (
 )
 
 from ..circuit.library import QNNCircuit
-from qiskit_machine_learning.exceptions import QiskitMachineLearningError
+from ..exceptions import QiskitMachineLearningError
 
 from .neural_network import NeuralNetwork
 
