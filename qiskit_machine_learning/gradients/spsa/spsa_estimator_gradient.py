@@ -132,29 +132,18 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
         for i, n in enumerate(all_n):
             if isinstance(self._estimator, BaseEstimatorV1):
                 result = results.values[partial_sum_n : partial_sum_n + n]
-                partial_sum_n += n
-                n = len(result) // 2
-                diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
-                # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
-                # since ``offset`` is a perturbation vector of 1s and -1s.
-                batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
-                # Take the average of the batch gradients.
-                gradient = np.mean(batch_gradients, axis=0)
-                indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
-                gradients.append(gradient[indices])
                 opt = self._get_local_options(options)
-            if isinstance(self._estimator, BaseEstimatorV2):
+            elif isinstance(self._estimator, BaseEstimatorV2):
                 result = array([float(result.data.evs[0]) for result in results])
-                partial_sum_n += n
-                n = len(result) // 2
-                diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
-                # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
-                # since ``offset`` is a perturbation vector of 1s and -1s.
-                batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
-                # Take the average of the batch gradients.
-                gradient = np.mean(batch_gradients, axis=0)
-                indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
-                gradients.append(gradient[indices])
                 opt = options
-
+            partial_sum_n += n
+            n = len(result) // 2
+            diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
+            # Calculate the gradient for each batch. Note that (``diff`` / ``offset``) is the gradient
+            # since ``offset`` is a perturbation vector of 1s and -1s.
+            batch_gradients = np.array([diff / offset for diff, offset in zip(diffs, offsets[i])])
+            # Take the average of the batch gradients.
+            gradient = np.mean(batch_gradients, axis=0)
+            indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
+            gradients.append(gradient[indices])
         return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)
