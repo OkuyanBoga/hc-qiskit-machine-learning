@@ -117,7 +117,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             gradient = []
             if isinstance(self._sampler, BaseSamplerV1):
                 result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
-
+                opt = self._get_local_options(options)
             elif isinstance(self._sampler, BaseSamplerV2):
                 result= []
                 for i in range(partial_sum_n,partial_sum_n + n):
@@ -128,6 +128,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
                     # Convert to quasi-probabilities
                     counts = QuasiDistribution(probabilities)
                     result.append({k: v for k, v in counts.items() if int(k) < self._output_shape})
+                    opt = options
 
             for dist_plus, dist_minus in zip(result[: n // 2], result[n // 2 :]):
                 grad_dist: dict[int, float] = defaultdict(float)
@@ -138,8 +139,6 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
                 gradient.append(dict(grad_dist))
             gradients.append(gradient)
             partial_sum_n += n
-        if isinstance(self._sampler, BaseSamplerV1):
-            opt = self._get_local_options(options)
-            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
-        else:
-            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=options)
+        
+        return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
+

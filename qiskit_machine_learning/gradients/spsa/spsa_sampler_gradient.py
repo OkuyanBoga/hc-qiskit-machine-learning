@@ -127,6 +127,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
             dist_diffs = {}
             if isinstance(self._sampler, BaseSamplerV1):
                 result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
+                opt = self._get_local_options(options)
 
             elif isinstance(self._sampler, BaseSamplerV2):
                 result= []
@@ -138,6 +139,7 @@ class SPSASamplerGradient(BaseSamplerGradient):
                     # Convert to quasi-probabilities
                     counts = QuasiDistribution(probabilities)
                     result.append({k: v for k, v in counts.items() if int(k) < self._num_qubits})
+                    opt = options
 
             for j, (dist_plus, dist_minus) in enumerate(zip(result[: n // 2], result[n // 2 :])):
                 dist_diff: dict[int, float] = defaultdict(float)
@@ -157,9 +159,5 @@ class SPSASamplerGradient(BaseSamplerGradient):
                 gradient.append(gradient_j)
             gradients.append(gradient)
             partial_sum_n += n
-
-        if isinstance(self._sampler, BaseSamplerV1):
-            opt = self._get_local_options(options)
-            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
-        else:
-            return SamplerGradientResult(gradients=gradients, metadata=metadata, options=options)
+            
+        return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
