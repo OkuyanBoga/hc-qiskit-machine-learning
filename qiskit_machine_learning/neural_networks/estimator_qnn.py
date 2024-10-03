@@ -161,7 +161,7 @@ class EstimatorQNN(NeuralNetwork):
         else:
             self.num_qubits = num_qubits
         if observables is None:
-            observables = SparsePauliOp.from_list([("Z" * num_qubits, 1)])
+            observables = SparsePauliOp.from_list([("Z" * self.num_qubits, 1)])
         if isinstance(observables, BaseOperator):
             observables = (observables,)
         self._observables = observables
