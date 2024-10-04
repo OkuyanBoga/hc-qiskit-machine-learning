@@ -41,7 +41,7 @@ from ...algorithm_job import AlgorithmJob
 class BaseSamplerGradient(ABC):
     """Base class for a ``SamplerGradient`` to compute the gradients of the sampling probability."""
 
-    def __init__(self, sampler: BaseSampler, options: Options | None = None, output_shape: int | None = None):
+    def __init__(self, sampler: BaseSampler, options: Options | None = None):
         """
         Args:
             sampler: The sampler used to compute the gradients.
@@ -49,9 +49,7 @@ class BaseSamplerGradient(ABC):
                 The order of priority is: options in ``run`` method > gradient's
                 default options > primitive's default setting.
                 Higher priority setting overrides lower priority setting
-            output_shape: Output shape for quasi_dist.
         """
-        self._output_shape = output_shape
         self._sampler: BaseSampler = sampler
         self._default_options = Options()
         if options is not None:

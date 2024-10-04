@@ -15,27 +15,24 @@
 from __future__ import annotations
 import logging
 
-from qiskit.primitives import BaseSamplerV1
-from qiskit.primitives.base import BaseSamplerV2
-
 from numbers import Integral
 from typing import Callable, cast, Iterable, Sequence
 
 import numpy as np
+
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseSampler, SamplerResult, Sampler
+
+import qiskit_machine_learning.optionals as _optionals
+from .neural_network import NeuralNetwork
 from ..gradients import (
     BaseSamplerGradient,
     ParamShiftSamplerGradient,
     SamplerGradientResult,
 )
-from qiskit.result import QuasiDistribution
-
 from ..circuit.library import QNNCircuit
 from ..exceptions import QiskitMachineLearningError
-import qiskit_machine_learning.optionals as _optionals
 
-from .neural_network import NeuralNetwork
 
 if _optionals.HAS_SPARSE:
     # pylint: disable=import-error
@@ -163,7 +160,7 @@ class SamplerQNN(NeuralNetwork):
                 tuple of unsigned integers. These are used as new indices for the (potentially
                 sparse) output array. If no interpret function is
                 passed, then an identity function will be used by this neural network.
-            output_shape: The output shape of the custom interpretation. For SamplerV1, it is ignored if no custom
+            output_shape: The output shape of the custom interpretation. It is ignored if no custom
                 interpret method is provided where the shape is taken to be
                 ``2^circuit.num_qubits``.
             gradient: An optional sampler gradient to be used for the backward pass.
@@ -181,6 +178,11 @@ class SamplerQNN(NeuralNetwork):
             sampler = Sampler()
         self.sampler = sampler
 
+        # set gradient
+        if gradient is None:
+            gradient = ParamShiftSamplerGradient(self.sampler)
+        self.gradient = gradient
+
         self._org_circuit = circuit
 
         if isinstance(circuit, QNNCircuit):
@@ -194,11 +196,6 @@ class SamplerQNN(NeuralNetwork):
             _optionals.HAS_SPARSE.require_now("DOK")
 
         self.set_interpret(interpret, output_shape)
-        # set gradient
-        if gradient is None:
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler, output_shape = output_shape)
-        self.gradient = gradient
-
         self._input_gradients = input_gradients
 
         super().__init__(
@@ -275,13 +272,14 @@ class SamplerQNN(NeuralNetwork):
             else:
                 output_shape_ = output_shape  # type: ignore
         else:
-            if output_shape is None:
-                if isinstance(self.sampler, BaseSamplerV1):
-                    output_shape_ = (2**self.circuit.num_qubits,)
-                else:
-                    raise QiskitMachineLearningError("Output shape is required for different samplers.")
-            else:
-                output_shape_ = int(output_shape)
+            if output_shape is not None:
+                # Warn user that output_shape parameter will be ignored
+                logger.warning(
+                    "No interpret function given, output_shape will be automatically "
+                    "determined as 2^num_qubits."
+                )
+            output_shape_ = (2**self.circuit.num_qubits,)
+
         return output_shape_
 
     def _postprocess(self, num_samples: int, result: SamplerResult) -> np.ndarray | SparseArray:
@@ -298,19 +296,8 @@ class SamplerQNN(NeuralNetwork):
             prob = np.zeros((num_samples, *self._output_shape))
 
         for i in range(num_samples):
-            if isinstance(self.sampler, BaseSamplerV1):
-                counts = result.quasi_dists[i]
+            counts = result.quasi_dists[i]
 
-            elif isinstance(self.sampler, BaseSamplerV2):
-                bitstring_counts = result[i].data.meas.get_counts()
-                # Normalize the counts to probabilities
-                total_shots = sum(bitstring_counts.values())
-                probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
-                # Convert to quasi-probabilities
-                counts = QuasiDistribution(probabilities)
-                counts = {k: v for k, v in counts.items() if int(k) < self._output_shape[0]}
-            else:
-                raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")
             # evaluate probabilities
             for b, v in counts.items():
                 key = self._interpret(b)
@@ -342,7 +329,6 @@ class SamplerQNN(NeuralNetwork):
             )
             weights_grad = DOK((num_samples, *self._output_shape, self._num_weights))
         else:
-
             input_grad = (
                 np.zeros((num_samples, *self._output_shape, self._num_inputs))
                 if self._input_gradients
@@ -401,13 +387,8 @@ class SamplerQNN(NeuralNetwork):
         """
         parameter_values, num_samples = self._preprocess_forward(input_data, weights)
 
-        if isinstance(self.sampler, BaseSamplerV1):
-            job = self.sampler.run([self._circuit] * num_samples, parameter_values)
-        elif isinstance(self.sampler, BaseSamplerV2):
-            job = self.sampler.run([(self._circuit, parameter_values[i]) for i in range(num_samples)])
-        else:
-            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")       
-
+        # sampler allows batching
+        job = self.sampler.run([self._circuit] * num_samples, parameter_values)
         try:
             results = job.result()
         except Exception as exc:
@@ -432,10 +413,12 @@ class SamplerQNN(NeuralNetwork):
 
             job = None
             if self._input_gradients:
-                job = self.gradient.run(circuits, parameter_values)
+                job = self.gradient.run(circuits, parameter_values)  # type: ignore[arg-type]
             elif len(parameter_values[0]) > self._num_inputs:
                 params = [self._circuit.parameters[self._num_inputs :]] * num_samples
-                job = self.gradient.run(circuits, parameter_values, parameters=params)
+                job = self.gradient.run(
+                    circuits, parameter_values, parameters=params  # type: ignore[arg-type]
+                )
 
             if job is not None:
                 try:
