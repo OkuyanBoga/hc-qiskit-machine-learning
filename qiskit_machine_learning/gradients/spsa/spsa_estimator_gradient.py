@@ -23,10 +23,6 @@ from qiskit.primitives import BaseEstimator
 from qiskit.providers import Options
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 
-from qiskit.primitives import BaseEstimatorV1
-from qiskit.primitives.base import BaseEstimatorV2
-from numpy import array
-
 from ..base.base_estimator_gradient import BaseEstimatorGradient
 from ..base.estimator_gradient_result import EstimatorGradientResult
 
@@ -44,6 +40,7 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
     `doi: 10.1109/TAC.2000.880982 <https://ieeexplore.ieee.org/document/880982>`_
     """
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         estimator: BaseEstimator,
@@ -106,38 +103,23 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
             job_param_values.extend(plus + minus)
             all_n.append(2 * self._batch_size)
 
-        PUBs = [
-            (job_circuits[i], [observable], job_param_values[i]) for i in range(len(job_circuits))
-        ]
-
-        if isinstance(self._estimator, BaseEstimatorV1):
-            # Run the single job with all circuits.
-            job = self._estimator.run(
-                job_circuits,
-                job_observables,
-                job_param_values,
-                **options,
-            )
-            results = job.result()
-        elif isinstance(self._estimator, BaseEstimatorV2):
-            job = self._estimator.run(PUBs, precision=0.001, **options)
-        else:
-            raise AlgorithmError("Wrong Estimator Type.")
-
+        # Run the single job with all circuits.
+        job = self._estimator.run(
+            job_circuits,
+            job_observables,
+            job_param_values,
+            **options,
+        )
         try:
             results = job.result()
         except Exception as exc:
             raise AlgorithmError("Estimator job failed.") from exc
+
         # Compute the gradients.
         gradients = []
         partial_sum_n = 0
         for i, n in enumerate(all_n):
-            if isinstance(self._estimator, BaseEstimatorV1):
-                result = results.values[partial_sum_n : partial_sum_n + n]
-                opt = self._get_local_options(options)
-            elif isinstance(self._estimator, BaseEstimatorV2):
-                result = array([float(result.data.evs[0]) for result in results])
-                opt = options
+            result = results.values[partial_sum_n : partial_sum_n + n]
             partial_sum_n += n
             n = len(result) // 2
             diffs = (result[:n] - result[n:]) / (2 * self._epsilon)
@@ -148,4 +130,6 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
             gradient = np.mean(batch_gradients, axis=0)
             indices = [circuits[i].parameters.data.index(p) for p in metadata[i]["parameters"]]
             gradients.append(gradient[indices])
+
+        opt = self._get_local_options(options)
         return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)
