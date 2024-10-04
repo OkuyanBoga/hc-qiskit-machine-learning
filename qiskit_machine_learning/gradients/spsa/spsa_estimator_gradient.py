@@ -106,7 +106,9 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
             job_param_values.extend(plus + minus)
             all_n.append(2 * self._batch_size)
 
-        PUBs = [(job_circuits[i],[observable],job_param_values[i]) for i in range(len(job_circuits))]
+        PUBs = [
+            (job_circuits[i], [observable], job_param_values[i]) for i in range(len(job_circuits))
+        ]
 
         if isinstance(self._estimator, BaseEstimatorV1):
             # Run the single job with all circuits.
@@ -121,7 +123,7 @@ class SPSAEstimatorGradient(BaseEstimatorGradient):
             job = self._estimator.run(PUBs, precision=0.001, **options)
         else:
             raise AlgorithmError("Wrong Estimator Type.")
-        
+
         try:
             results = job.result()
         except Exception as exc:

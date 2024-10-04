@@ -115,13 +115,14 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
         elif isinstance(self._estimator, BaseEstimatorV2):
             job = self._estimator.run(PUBs, precision=0.001, **options)
         else:
-            raise AlgorithmError(f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self._estimator)} instead.")
-        
+            raise AlgorithmError(
+                f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self._estimator)} instead."
+            )
+
         try:
             results = job.result()
         except Exception as exc:
             raise AlgorithmError("Estimator job failed.") from exc
-
 
         # Compute the gradients.
         gradients = []
@@ -136,7 +137,5 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             gradient_ = (result[: n // 2] - result[n // 2 :]) / 2
             gradients.append(gradient_)
             partial_sum_n += n
-                
+
         return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)
-
-

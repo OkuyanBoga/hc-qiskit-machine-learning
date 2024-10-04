@@ -157,7 +157,9 @@ class EstimatorQNN(NeuralNetwork):
         self._org_circuit = circuit
         if num_qubits is None:
             self.num_qubits = circuit.num_qubits
-            print('Warning: No number of qubits provided, using it from provided circuit, if the circuit is transpiled this can be wrong and cause issues.')
+            print(
+                "Warning: No number of qubits provided, using it from provided circuit, if the circuit is transpiled this can be wrong and cause issues."
+            )
         else:
             self.num_qubits = num_qubits
         if observables is None:
@@ -243,7 +245,9 @@ class EstimatorQNN(NeuralNetwork):
             results = job.result()
             results = [result.data.evs[0] for result in results]
         else:
-            raise QiskitMachineLearningError(f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self.estimator)} instead.")
+            raise QiskitMachineLearningError(
+                f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self.estimator)} instead."
+            )
         return self._forward_postprocess(num_samples, results)
 
     def _backward_postprocess(
@@ -303,4 +307,3 @@ class EstimatorQNN(NeuralNetwork):
                 input_grad, weights_grad = self._backward_postprocess(num_samples, results)
 
         return input_grad, weights_grad
-        
