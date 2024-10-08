@@ -117,7 +117,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             sampler = self.sampler
         elif sampler_type == V2:
             sampler = self.sampler_v2
-            pm = generate_preset_pass_manager()
+            pm = generate_preset_pass_manager(optimization_level=1)
             self.qc = pm.run(self.qc)
         else:
             sampler = None
