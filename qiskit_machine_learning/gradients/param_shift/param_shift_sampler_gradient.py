@@ -20,6 +20,10 @@ from collections.abc import Sequence
 
 from qiskit.circuit import Parameter, QuantumCircuit
 
+from qiskit.primitives import BaseSamplerV1
+from qiskit.primitives.base import BaseSamplerV2
+from qiskit.result import QuasiDistribution
+
 from ..base.base_sampler_gradient import BaseSamplerGradient
 from ..base.sampler_gradient_result import SamplerGradientResult
 from ..utils import _make_param_shift_parameter_values
@@ -76,6 +80,8 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         **options,
     ) -> SamplerGradientResult:
         """Compute the sampler gradients on the given circuits."""
+        if self._output_shape is None:
+            self._output_shape = circuits[0].num_qubits
         job_circuits, job_param_values, metadata = [], [], []
         all_n = []
         for circuit, parameter_values_, parameters_ in zip(circuits, parameter_values, parameters):
@@ -91,18 +97,77 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             all_n.append(n)
 
         # Run the single job with all circuits.
-        job = self._sampler.run(job_circuits, job_param_values, **options)
+        if isinstance(self._sampler, BaseSamplerV1):
+            job = self._sampler.run(job_circuits, job_param_values, **options)
+        elif isinstance(self._sampler, BaseSamplerV2):
+            circ_params = [(job_circuits[i],job_param_values[i]) for i in range(len(job_param_values))]            
+            job = self._sampler.run(circ_params)
+        else:
+            raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
+        
         try:
             results = job.result()
         except Exception as exc:
-            raise AlgorithmError("Estimator job failed.") from exc
+            raise AlgorithmError("Sampler job failed.") from exc
 
         # Compute the gradients.
         gradients = []
         partial_sum_n = 0
         for n in all_n:
             gradient = []
-            result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
+            if isinstance(self._sampler, BaseSamplerV1):
+                result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
+                if isinstance(self._output_shape, tuple):
+                    print("Lemon - Settings when using (2, 3) output shape with SamplerV1")
+                    print("output shape : ", self._output_shape)
+                    print("collected results for samplerv1: ", result)
+                    print("len of results: ", len(result))
+                    print("n: ", n)
+                    print("len(circuit.params): ", len(circuit.parameters))
+                    print("Sampler: ", type(self._sampler))
+                    print("len(job_circuits): ", len(job_circuits))
+                    print("job_circuits: ", job_circuits)
+                    print("len(job_param_values): ", len(job_param_values))
+                    print("job_param_values: ", job_param_values)
+                    print("len(param_shift_parameter_values): ", len(param_shift_parameter_values))
+                    print("len(all_n): ", len(all_n))
+                    print("Type results: ", type(results))
+                    print("Results: ", results)
+                    print("default output shape - num_qubits", circuits[0].num_qubits)
+
+                opt = self._get_local_options(options)
+            elif isinstance(self._sampler, BaseSamplerV2):
+                result = []
+                if isinstance(self._output_shape, tuple):
+                    print("Melon - Settings when using (2, 3) output shape with SamplerV2")
+                    print("output shape : ", self._output_shape)
+                    print("collected results for samplerv2: ", result)
+                    print("len of results: ", len(result))
+                    print("n: ", n)
+                    print("len(circuit.params): ", len(circuit.parameters))
+                    print("Sampler: ", type(self._sampler))
+                    print("len(job_circuits): ", len(job_circuits))
+                    print("job_circuits: ", job_circuits)
+                    print("len(job_param_values): ", len(job_param_values))
+                    print("job_param_values: ", job_param_values)
+                    print("len(param_shift_parameter_values): ", len(param_shift_parameter_values))
+                    print("len(all_n): ", len(all_n))
+                    print("Type results: ", type(results))
+                    print("Results: ", results)
+                    print("default output shape - num_qubits", circuits[0].num_qubits)
+                for i in range(partial_sum_n,partial_sum_n + n):
+                    bitstring_counts = results[i].data.meas.get_counts()
+                    # Normalize the counts to probabilities
+                    total_shots = sum(bitstring_counts.values())
+                    probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
+                    # Convert to quasi-probabilities
+                    counts = QuasiDistribution(probabilities)
+                    try:
+                        result.append({k: v for k, v in counts.items() if int(k) < self._output_shape})
+                    except TypeError:
+                        print("Comparison Failed due to TypeError")
+                    opt = options
+
             for dist_plus, dist_minus in zip(result[: n // 2], result[n // 2 :]):
                 grad_dist: dict[int, float] = defaultdict(float)
                 for key, val in dist_plus.items():
@@ -112,6 +177,6 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
                 gradient.append(dict(grad_dist))
             gradients.append(gradient)
             partial_sum_n += n
-
-        opt = self._get_local_options(options)
+        
         return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
+
