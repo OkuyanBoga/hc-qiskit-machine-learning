@@ -114,6 +114,7 @@ class EstimatorQNN(NeuralNetwork):
         gradient: BaseEstimatorGradient | None = None,
         input_gradients: bool = False,
         num_qubits: int | None = None,
+        default_precision: float = 0.0,
     ):
         r"""
         Args:
@@ -130,12 +131,12 @@ class EstimatorQNN(NeuralNetwork):
             input_params: The parameters that correspond to the input data of the network.
                 If ``None``, the input data is not bound to any parameters.
                 If a :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is provided the
-                `input_params` value here is ignored. Instead the value is taken from the
+                `input_params` value here is ignored. Instead, the value is taken from the
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` input_parameters.
             weight_params: The parameters that correspond to the trainable weights.
                 If ``None``, the weights are not bound to any parameters.
                 If a :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is provided the
-                `weight_params` value here is ignored. Instead the value is taken from the
+                `weight_params` value here is ignored. Instead, the value is taken from the
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` weight_parameters.
             gradient: The estimator gradient to be used for the backward pass.
                 If None, a default instance of the estimator gradient,
@@ -145,6 +146,7 @@ class EstimatorQNN(NeuralNetwork):
                 ``True`` for a proper gradient computation when using
                 :class:`~qiskit_machine_learning.connectors.TorchConnector`.
             num_qubits: Number of qubits for actual circuit.
+            default_precision: The default precision for the estimator if not specified during run.
 
         Raises:
             QiskitMachineLearningError: Invalid parameter values.
@@ -184,6 +186,7 @@ class EstimatorQNN(NeuralNetwork):
         if gradient is None:
             gradient = ParamShiftEstimatorGradient(self.estimator)
 
+        self._default_precision = default_precision
         self.gradient = gradient
         self._input_gradients = input_gradients
 
@@ -228,6 +231,11 @@ class EstimatorQNN(NeuralNetwork):
         """Turn on/off computation of gradients with respect to input data."""
         self._input_gradients = input_gradients
 
+    @property
+    def default_precision(self) -> float:
+        """Return the default precision"""
+        return self._default_precision
+
     def _forward_postprocess(self, num_samples: int, result: EstimatorResult) -> np.ndarray:
         """Post-processing during forward pass of the network."""
         return np.reshape(result, (-1, num_samples)).T
@@ -259,7 +267,7 @@ class EstimatorQNN(NeuralNetwork):
                     )
 
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
-            job = self.estimator.run(circuit_observable_params, precision=0.001)
+            job = self.estimator.run(circuit_observable_params, precision=self._default_precision)
             results = [result.data.evs[0] for result in job.result()]
 
         else:
