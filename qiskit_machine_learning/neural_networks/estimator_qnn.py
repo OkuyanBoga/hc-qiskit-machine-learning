@@ -15,24 +15,22 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from copy import copy
 from typing import Sequence
-
-from qiskit.primitives import BaseEstimatorV1
-from qiskit.primitives.base import BaseEstimatorV2
-
 import numpy as np
+
 from qiskit.circuit import Parameter, QuantumCircuit
-from qiskit.primitives import BaseEstimator, Estimator, EstimatorResult
+from qiskit.primitives.base import BaseEstimatorV2
+from qiskit.primitives import BaseEstimator, BaseEstimatorV1, Estimator, EstimatorResult
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
+
 from ..gradients import (
     BaseEstimatorGradient,
     EstimatorGradientResult,
     ParamShiftEstimatorGradient,
-    SPSAEstimatorGradient,
 )
-
 from ..circuit.library import QNNCircuit
 from ..exceptions import QiskitMachineLearningError
 
@@ -155,26 +153,37 @@ class EstimatorQNN(NeuralNetwork):
             estimator = Estimator()
         self.estimator = estimator
         self._org_circuit = circuit
+
         if num_qubits is None:
             self.num_qubits = circuit.num_qubits
-            print(
-                "Warning: No number of qubits provided, using it from provided circuit, if the circuit is transpiled this can be wrong and cause issues."
+            warnings.warn(
+                f"No number of qubits was not specified ({num_qubits:d}) and was retrieved from "
+                + f"`circuit` ({self.num_qubits:d}). If `circuit` is transpiled, this may cause "
+                + "unstable behaviour.",
+                UserWarning,
+                stacklevel=2,
             )
         else:
             self.num_qubits = num_qubits
+
         if observables is None:
             observables = SparsePauliOp.from_list([("Z" * self.num_qubits, 1)])
+
         if isinstance(observables, BaseOperator):
             observables = (observables,)
+
         self._observables = observables
+
         if isinstance(circuit, QNNCircuit):
             self._input_params = list(circuit.input_parameters)
             self._weight_params = list(circuit.weight_parameters)
         else:
             self._input_params = list(input_params) if input_params is not None else []
             self._weight_params = list(weight_params) if weight_params is not None else []
+
         if gradient is None:
             gradient = ParamShiftEstimatorGradient(self.estimator)
+
         self.gradient = gradient
         self._input_gradients = input_gradients
 
@@ -211,7 +220,7 @@ class EstimatorQNN(NeuralNetwork):
     @property
     def input_gradients(self) -> bool:
         """Returns whether gradients with respect to input data are computed by this neural network
-        in the ``backward`` method or not. By default such gradients are not computed."""
+        in the ``backward`` method or not. By default, such gradients are not computed."""
         return self._input_gradients
 
     @input_gradients.setter
@@ -229,24 +238,35 @@ class EstimatorQNN(NeuralNetwork):
         """Forward pass of the neural network."""
         parameter_values_, num_samples = self._preprocess_forward(input_data, weights)
 
+        # Determine how to run the estimator based on its version
         if isinstance(self.estimator, BaseEstimatorV1):
+
             job = self.estimator.run(
                 [self._circuit] * num_samples * self.output_shape[0],
                 [op for op in self._observables for _ in range(num_samples)],
                 np.tile(parameter_values_, (self.output_shape[0], 1)),
             )
             results = job.result().values
+
         elif isinstance(self.estimator, BaseEstimatorV2):
-            PUBs = []
+
+            # Prepare circuit-observable-parameter tuples (PUBs)
+            circuit_observable_params = []
             for _ in range(num_samples):
                 for observable in self._observables:
-                    PUBs.append((self._circuit, [observable], parameter_values_))
-            job = self.estimator.run(PUBs, precision=0.001)
-            results = job.result()
-            results = [result.data.evs[0] for result in results]
+                    circuit_observable_params.append(
+                        (self._circuit, [observable], parameter_values_)
+                    )
+
+            # For BaseEstimatorV2, run the estimator using PUBs and specified precision
+            job = self.estimator.run(circuit_observable_params, precision=0.001)
+            results = [result.data.evs[0] for result in job.result()]
+
         else:
             raise QiskitMachineLearningError(
-                f"The accepted estimators are BaseEstimatorV1 (deprecated) and BaseEstimatorV2; got {type(self.estimator)} instead."
+                "The accepted estimators are BaseEstimatorV1 and BaseEstimatorV2; got "
+                + f"{type(self.estimator)} instead. Note that BaseEstimatorV1 is deprecated in"
+                + "Qiskit and removed in Qiskit IBM Runtime."
             )
         return self._forward_postprocess(num_samples, results)
 
@@ -293,7 +313,9 @@ class EstimatorQNN(NeuralNetwork):
 
             job = None
             if self._input_gradients:
-                job = self.gradient.run(circuits, observables, param_values)  # type: ignore[arg-type]
+                job = self.gradient.run(
+                    circuits, observables, param_values
+                )  # type: ignore[arg-type]
             elif len(parameter_values[0]) > self._num_inputs:
                 params = [self._circuit.parameters[self._num_inputs :]] * num_circuits
                 job = self.gradient.run(

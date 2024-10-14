@@ -17,15 +17,16 @@ import unittest
 from test import QiskitMachineLearningTestCase
 
 import numpy as np
+
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.circuit.library import ZZFeatureMap, RealAmplitudes, ZFeatureMap
 from qiskit.quantum_info import SparsePauliOp
-from qiskit_machine_learning.circuit.library import QNNCircuit
-
-from qiskit_machine_learning.neural_networks.estimator_qnn import EstimatorQNN
-from qiskit_ibm_runtime import Session, EstimatorV2
 from qiskit.providers.fake_provider import GenericBackendV2
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit_ibm_runtime import Session, EstimatorV2
+
+from qiskit_machine_learning.circuit.library import QNNCircuit
+from qiskit_machine_learning.neural_networks.estimator_qnn import EstimatorQNN
 
 CASE_DATA = {
     "shape_1_1": {
@@ -173,7 +174,7 @@ CASE_DATA = {
 }
 
 
-class TestEstimatorQNN_V2(QiskitMachineLearningTestCase):
+class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
     """EstimatorQNN Tests for estimator_v2. The correct references is obtained from EstimatorQNN"""
 
     def __init__(
