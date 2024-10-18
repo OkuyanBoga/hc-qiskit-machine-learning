@@ -281,7 +281,11 @@ class SamplerQNN(NeuralNetwork):
                 else:
                     raise QiskitMachineLearningError("Output shape is required for different samplers.")
             else:
-                output_shape_ = int(output_shape)
+                if isinstance(output_shape, Integral):
+                    output_shape = int(output_shape)
+                    output_shape_ = (output_shape,)
+                else:
+                    output_shape_ = output_shape  # type: ignore
         return output_shape_
 
     def _postprocess(self, num_samples: int, result: SamplerResult) -> np.ndarray | SparseArray:
