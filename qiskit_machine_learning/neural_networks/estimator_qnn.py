@@ -159,7 +159,7 @@ class EstimatorQNN(NeuralNetwork):
         if num_qubits is None:
             self.num_qubits = circuit.num_qubits
             warnings.warn(
-                f"No number of qubits was not specified ({num_qubits:d}) and was retrieved from "
+                f"No number of qubits was not specified ({num_qubits}) and was retrieved from "
                 + f"`circuit` ({self.num_qubits:d}). If `circuit` is transpiled, this may cause "
                 + "unstable behaviour.",
                 UserWarning,
