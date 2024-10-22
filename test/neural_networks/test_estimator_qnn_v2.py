@@ -207,7 +207,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         TestCase,
     ):
         algorithm_globals.random_seed = 52
-        self.backend = GenericBackendV2(num_qubits=8)
+        self.backend = GenericBackendV2(num_qubits=4)
         self.session = Session(backend=self.backend)
         self.estimator = EstimatorV2(mode=self.session)
         self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=0)
