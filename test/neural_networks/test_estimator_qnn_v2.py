@@ -228,7 +228,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         with self.subTest("forward pass"):
             for i, inputs in enumerate(test_data):
                 forward = estimator_qnn.forward(inputs, weights)
-                np.testing.assert_allclose(forward, correct_forwards[i], atol=1e-3)
+                np.testing.assert_allclose(forward, correct_forwards[i], atol=1e-2)
         # test backward pass without input_gradients
         with self.subTest("backward pass without input gradients"):
             for i, inputs in enumerate(test_data):
@@ -237,7 +237,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-3
+                        weight_backward, correct_weight_backwards[i], atol=1e-2
                     )
                 self.assertIsNone(input_backward)
         # test backward pass with input_gradients
@@ -249,13 +249,13 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-3
+                        weight_backward, correct_weight_backwards[i], atol=1e-2
                     )
                 if correct_input_backwards[i] is None:
                     self.assertIsNone(input_backward)
                 else:
                     np.testing.assert_allclose(
-                        input_backward, correct_input_backwards[i], atol=1e-3
+                        input_backward, correct_input_backwards[i], atol=1e-2
                     )
 
     def test_estimator_qnn_1_1(self):

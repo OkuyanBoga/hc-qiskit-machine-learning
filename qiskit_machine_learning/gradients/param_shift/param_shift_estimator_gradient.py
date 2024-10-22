@@ -17,16 +17,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import numpy as np
+
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.primitives.base import BaseEstimatorV2
-from qiskit.primitives import BaseEstimator, BaseEstimatorV1, Estimator, EstimatorResult
+from qiskit.primitives import BaseEstimatorV1
+from qiskit.providers.options import Options
 
 from ..base.base_estimator_gradient import BaseEstimatorGradient
 from ..base.estimator_gradient_result import EstimatorGradientResult
 from ..utils import _make_param_shift_parameter_values
 
-from ...exceptions import AlgorithmError, QiskitMachineLearningError
+from ...exceptions import QiskitMachineLearningError
 
 
 class ParamShiftEstimatorGradient(BaseEstimatorGradient):
@@ -119,6 +122,8 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
                 gradients.append(gradient_)
                 partial_sum_n += n
 
+            opt = self._get_local_options(options)
+
         elif isinstance(self._estimator, BaseEstimatorV2):
             # Prepare circuit-observable-parameter tuples (PUBs)
             circuit_observable_params = []
@@ -128,15 +133,18 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
             job = self._estimator.run(circuit_observable_params)
             results = job.result()
+            results = np.array([float(r.data.evs) for r in results])
 
             # Compute the gradients.
             gradients = []
             partial_sum_n = 0
             for n in all_n:
-                result = results[0].data[partial_sum_n: partial_sum_n + n]
+                result = results[partial_sum_n: partial_sum_n + n]
                 gradient_ = (result[: n // 2] - result[n // 2:]) / 2
                 gradients.append(gradient_)
                 partial_sum_n += n
+
+            opt = Options(**options)
 
         else:
             raise QiskitMachineLearningError(
@@ -145,7 +153,5 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
                 + "Qiskit and removed in Qiskit IBM Runtime."
             )
 
-
-
-        opt = self._get_local_options(options)
-        return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)
+        return EstimatorGradientResult(gradients=gradients, metadata=metadata,
+                                       options=opt)
