@@ -31,6 +31,8 @@ from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.estimator_qnn import EstimatorQNN
 from qiskit_machine_learning.utils import algorithm_globals
 
+algorithm_globals.random_seed = 52
+
 CASE_DATA = {
     "shape_1_1": {
         "test_data": [1, [1], [[1], [2]], [[[1], [2]], [[3], [4]]]],
@@ -206,7 +208,6 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         self,
         TestCase,
     ):
-        algorithm_globals.random_seed = 52
         self.backend = GenericBackendV2(num_qubits=4)
         self.session = Session(backend=self.backend)
         self.estimator = EstimatorV2(mode=self.session)
