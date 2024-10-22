@@ -107,14 +107,14 @@ class EstimatorQNN(NeuralNetwork):
         self,
         *,
         circuit: QuantumCircuit,
-        estimator: BaseEstimator | None = None,
+        estimator: BaseEstimator | BaseEstimatorV2 | None = None,
         observables: Sequence[BaseOperator] | BaseOperator | None = None,
         input_params: Sequence[Parameter] | None = None,
         weight_params: Sequence[Parameter] | None = None,
         gradient: BaseEstimatorGradient | None = None,
         input_gradients: bool = False,
         num_qubits: int | None = None,
-        default_precision: float = 0.0,
+        default_precision: float = 0.01,
     ):
         r"""
         Args:
@@ -320,6 +320,7 @@ class EstimatorQNN(NeuralNetwork):
             param_values = np.tile(parameter_values, (num_observables, 1))
 
             job = None
+
             if self._input_gradients:
                 job = self.gradient.run(
                     circuits, observables, param_values
@@ -334,7 +335,7 @@ class EstimatorQNN(NeuralNetwork):
                 try:
                     results = job.result()
                 except Exception as exc:
-                    raise QiskitMachineLearningError("Estimator job failed.") from exc
+                    raise QiskitMachineLearningError(f"Estimator job failed. {exc}") from exc
 
                 input_grad, weights_grad = self._backward_postprocess(num_samples, results)
 
