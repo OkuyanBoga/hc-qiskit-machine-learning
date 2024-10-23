@@ -114,7 +114,7 @@ class EstimatorQNN(NeuralNetwork):
         gradient: BaseEstimatorGradient | None = None,
         input_gradients: bool = False,
         num_qubits: int | None = None,
-        default_precision: float = 0.01,
+        default_precision: float = 0.015625,
     ):
         r"""
         Args:
