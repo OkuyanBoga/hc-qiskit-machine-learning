@@ -29,6 +29,7 @@ from ..gradients import (
     ParamShiftSamplerGradient,
     SamplerGradientResult,
 )
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit.result import QuasiDistribution
 
 from ..circuit.library import QNNCircuit
@@ -131,7 +132,7 @@ class SamplerQNN(NeuralNetwork):
         self,
         *,
         circuit: QuantumCircuit,
-        sampler: BaseSampler | None = None,
+        sampler: BaseSampler | BaseSamplerV2 | None = None,
         input_params: Sequence[Parameter] | None = None,
         weight_params: Sequence[Parameter] | None = None,
         sparse: bool = False,
@@ -194,9 +195,22 @@ class SamplerQNN(NeuralNetwork):
             _optionals.HAS_SPARSE.require_now("DOK")
 
         self.set_interpret(interpret, output_shape)
+
         # set gradient
         if gradient is None:
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler, output_shape = output_shape)
+            if isinstance(self.sampler, BaseSamplerV1):
+                gradient = ParamShiftSamplerGradient(
+                    sampler=self.sampler,
+                    output_shape=output_shape)
+                
+            elif isinstance(self.sampler, BaseSamplerV2):
+                gradient = ParamShiftSamplerGradient(
+                    sampler=self.sampler,
+                    output_shape=output_shape,
+                    pass_manager=generate_preset_pass_manager(
+                        optimization_level=1, backend=self.sampler._backend
+                    )
+            )
         self.gradient = gradient
 
         self._input_gradients = input_gradients
@@ -279,7 +293,9 @@ class SamplerQNN(NeuralNetwork):
                 if isinstance(self.sampler, BaseSamplerV1):
                     output_shape_ = (2**self.circuit.num_qubits,)
                 else:
-                    raise QiskitMachineLearningError("Output shape is required for different samplers.")
+                    raise QiskitMachineLearningError(
+                        "Output shape is required for different samplers."
+                    )
             else:
                 if isinstance(output_shape, Integral):
                     output_shape = int(output_shape)
@@ -314,7 +330,9 @@ class SamplerQNN(NeuralNetwork):
                 counts = QuasiDistribution(probabilities)
                 counts = {k: v for k, v in counts.items() if int(k) < self._output_shape[0]}
             else:
-                raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")
+                raise QiskitMachineLearningError(
+                    f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+                )
             # evaluate probabilities
             for b, v in counts.items():
                 key = self._interpret(b)
@@ -408,9 +426,17 @@ class SamplerQNN(NeuralNetwork):
         if isinstance(self.sampler, BaseSamplerV1):
             job = self.sampler.run([self._circuit] * num_samples, parameter_values)
         elif isinstance(self.sampler, BaseSamplerV2):
-            job = self.sampler.run([(self._circuit, parameter_values[i]) for i in range(num_samples)])
+            job = self.sampler.run(
+                [(self._circuit, parameter_values[i]) for i in range(num_samples)]
+            )
+            print("Debug SamplerQNN")
+            print(type(self.sampler), type(job))
+            print("v2status", job.done(), job.in_final_state())
+            print(job.result())
         else:
-            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")       
+            raise QiskitMachineLearningError(
+                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+            )
 
         try:
             results = job.result()

@@ -39,7 +39,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
     [1] Schuld, M., Bergholm, V., Gogolin, C., Izaac, J., and Killoran, N. Evaluating analytic
     gradients on quantum hardware, `DOI <https://doi.org/10.1103/PhysRevA.99.032331>`_
     """
-
+ 
     SUPPORTED_GATES = [
         "x",
         "y",
@@ -100,8 +100,12 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         if isinstance(self._sampler, BaseSamplerV1):
             job = self._sampler.run(job_circuits, job_param_values, **options)
         elif isinstance(self._sampler, BaseSamplerV2):
-            circ_params = [(job_circuits[i],job_param_values[i]) for i in range(len(job_param_values))]            
+            isa_g_circs = self._pass_manager.run(job_circuits)
+            circ_params = [(job_circuits[i],job_param_values[i]) for i in range(len(job_param_values))]   
             job = self._sampler.run(circ_params)
+            print("DEBUG ParamShift")
+            print(type(self._sampler), type(job))
+            print("v2status", job.done(), job.in_final_state())
         else:
             raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
         
@@ -117,44 +121,9 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             gradient = []
             if isinstance(self._sampler, BaseSamplerV1):
                 result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
-                if isinstance(self._output_shape, tuple):
-                    print("Lemon - Settings when using (2, 3) output shape with SamplerV1")
-                    print("output shape : ", self._output_shape)
-                    print("collected results for samplerv1: ", result)
-                    print("len of results: ", len(result))
-                    print("n: ", n)
-                    print("len(circuit.params): ", len(circuit.parameters))
-                    print("Sampler: ", type(self._sampler))
-                    print("len(job_circuits): ", len(job_circuits))
-                    print("job_circuits: ", job_circuits)
-                    print("len(job_param_values): ", len(job_param_values))
-                    print("job_param_values: ", job_param_values)
-                    print("len(param_shift_parameter_values): ", len(param_shift_parameter_values))
-                    print("len(all_n): ", len(all_n))
-                    print("Type results: ", type(results))
-                    print("Results: ", results)
-                    print("default output shape - num_qubits", circuits[0].num_qubits)
-
                 opt = self._get_local_options(options)
             elif isinstance(self._sampler, BaseSamplerV2):
                 result = []
-                if isinstance(self._output_shape, tuple):
-                    print("Melon - Settings when using (2, 3) output shape with SamplerV2")
-                    print("output shape : ", self._output_shape)
-                    print("collected results for samplerv2: ", result)
-                    print("len of results: ", len(result))
-                    print("n: ", n)
-                    print("len(circuit.params): ", len(circuit.parameters))
-                    print("Sampler: ", type(self._sampler))
-                    print("len(job_circuits): ", len(job_circuits))
-                    print("job_circuits: ", job_circuits)
-                    print("len(job_param_values): ", len(job_param_values))
-                    print("job_param_values: ", job_param_values)
-                    print("len(param_shift_parameter_values): ", len(param_shift_parameter_values))
-                    print("len(all_n): ", len(all_n))
-                    print("Type results: ", type(results))
-                    print("Results: ", results)
-                    print("default output shape - num_qubits", circuits[0].num_qubits)
                 for i in range(partial_sum_n,partial_sum_n + n):
                     bitstring_counts = results[i].data.meas.get_counts()
                     # Normalize the counts to probabilities
