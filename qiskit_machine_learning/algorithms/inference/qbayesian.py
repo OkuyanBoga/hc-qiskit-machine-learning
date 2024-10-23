@@ -21,6 +21,11 @@ from qiskit.circuit import Qubit
 from qiskit.circuit.library import GroverOperator
 from qiskit.primitives import BaseSampler, Sampler, BaseSamplerV2
 from qiskit.result import QuasiDistribution
+from qiskit.transpiler.passmanager import BasePassManager
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit.providers.fake_provider import GenericBackendV2
+
+
 
 class QBayesian:
     r"""
@@ -63,6 +68,7 @@ class QBayesian:
         limit: int = 10,
         threshold: float = 0.9,
         sampler: BaseSampler | BaseSamplerV2 | None = None,
+        pass_manager: BasePassManager | None = None,
     ):
         """
         Args:
@@ -92,6 +98,11 @@ class QBayesian:
         if sampler is None:
             sampler = Sampler()
         self._sampler = sampler
+
+        if pass_manager is None:
+            _backend = GenericBackendV2(num_qubits=max(circuit.num_qubits, 2))
+            pass_manager = generate_preset_pass_manager(optimization_level=1, backend=_backend)
+        self._pass_manager = pass_manager
 
         # Label of register mapped to its qubit
         self._label2qubit = {qrg.name: qrg[0] for qrg in self._circ.qregs}
@@ -140,25 +151,33 @@ class QBayesian:
 
     def _run_circuit(self, circuit: QuantumCircuit) -> Dict[str, float]:
         """Run the quantum circuit with the sampler."""
-        # Sample from circuit
-        job = self._sampler.run(circuit)
-        result = job.result()
         counts = {}
 
         if isinstance(self._sampler, BaseSampler):
+            # Sample from circuit
+            job = self._sampler.run(circuit)
+            result = job.result()
+
             # Get the counts of quantum state results
             counts = result.quasi_dists[0].nearest_probability_distribution().binary_probabilities()
 
         elif isinstance(self._sampler, BaseSamplerV2):
-            bitstring_counts = result[0].data.meas.get_counts()
+
+            # Sample from circuit
+            circuit_isa = self._pass_manager.run(circuit)
+            job = self._sampler.run([circuit_isa])
+            result = job.result()
+
+            bit_array = list(result[0].data.values())[0]
+            bitstring_counts = bit_array.get_counts()
 
             # Normalize the counts to probabilities
-            total_shots = sum(bitstring_counts.values())
-            probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
+            total_shots = result[0].metadata["shots"]
+            counts = {k: v / total_shots for k, v in bitstring_counts.items()}
 
             # Convert to quasi-probabilities
-            counts = QuasiDistribution(probabilities)
-            counts = {k: v for k, v in counts.items()}
+            # counts = QuasiDistribution(probabilities)
+            # counts = {k: v for k, v in counts.items()}
 
         return counts
 
