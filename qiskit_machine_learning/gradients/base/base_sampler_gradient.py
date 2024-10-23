@@ -41,7 +41,7 @@ from ...algorithm_job import AlgorithmJob
 class BaseSamplerGradient(ABC):
     """Base class for a ``SamplerGradient`` to compute the gradients of the sampling probability."""
 
-    def __init__(self, sampler: BaseSampler, options: Options | None = None):
+    def __init__(self, sampler: BaseSampler, output_shape: tuple | None = None, options: Options | None = None):
         """
         Args:
             sampler: The sampler used to compute the gradients.
@@ -52,6 +52,7 @@ class BaseSamplerGradient(ABC):
         """
         self._sampler: BaseSampler = sampler
         self._default_options = Options()
+        self._output_shape = output_shape
         if options is not None:
             self._default_options.update_options(**options)
         self._gradient_circuit_cache: dict[tuple, GradientCircuit] = {}

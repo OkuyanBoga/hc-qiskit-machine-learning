@@ -278,8 +278,12 @@ class SamplerQNN(NeuralNetwork):
             if output_shape is None:
                 if isinstance(self.sampler, BaseSamplerV1):
                     output_shape_ = (2**self.circuit.num_qubits,)
+                elif isinstance(self.sampler, BaseSamplerV2):
+                    output_shape_ = (2**self.circuit.num_qubits,)
                 else:
-                    raise QiskitMachineLearningError("Output shape is required for different samplers.")
+                    raise QiskitMachineLearningError("Output shape is required for Sampler "
+                                                     + "primitives other than {BaseSamplerV1, "
+                                                     + "BaseSamplerV2}.")
             else:
                 if isinstance(output_shape, Integral):
                     output_shape = int(output_shape)
@@ -410,12 +414,12 @@ class SamplerQNN(NeuralNetwork):
         elif isinstance(self.sampler, BaseSamplerV2):
             job = self.sampler.run([(self._circuit, parameter_values[i]) for i in range(num_samples)])
         else:
-            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")       
+            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")
 
         try:
             results = job.result()
         except Exception as exc:
-            raise QiskitMachineLearningError("Sampler job failed.") from exc
+            raise QiskitMachineLearningError(f"Sampler job failed: {exc}") from exc
         result = self._postprocess(num_samples, results)
 
         return result
@@ -445,7 +449,7 @@ class SamplerQNN(NeuralNetwork):
                 try:
                     results = job.result()
                 except Exception as exc:
-                    raise QiskitMachineLearningError("Sampler job failed.") from exc
+                    raise QiskitMachineLearningError(f"Sampler job failed: {exc}") from exc
 
                 input_grad, weights_grad = self._postprocess_gradient(num_samples, results)
 
