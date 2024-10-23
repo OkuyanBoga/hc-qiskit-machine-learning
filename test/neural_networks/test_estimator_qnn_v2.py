@@ -269,7 +269,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
-        op = SparsePauliOp.from_list([("ZI", 1), ("XI", 1)])
+        op = SparsePauliOp.from_list([("Z" * isa_qc.num_qubits, 1), ("X" * isa_qc.num_qubits, 1)])
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
             observables=[op],
@@ -320,10 +320,10 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
 
         isa_qc = self.pm.run(qc)
         op1 = SparsePauliOp.from_sparse_list(
-            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         op2 = SparsePauliOp.from_sparse_list(
-            [("ZI", [0], 2), ("XI", [0], 2)], num_qubits=isa_qc.num_qubits
+            [("Z", [0], 2), ("X", [0], 2)], num_qubits=isa_qc.num_qubits
         )
 
         # construct QNN
