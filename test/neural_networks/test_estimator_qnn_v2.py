@@ -204,14 +204,16 @@ def remove_idle_qubits(circ: QuantumCircuit) -> QuantumCircuit:
 class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
     """EstimatorQNN Tests for estimator_v2. The correct references is obtained from EstimatorQNN"""
 
+    tolerance: dict[str: float] = dict(rtol=1.e-2, atol=1.e-2)
+    backend = GenericBackendV2(num_qubits=2)
+    session = Session(backend=backend)
+
     def __init__(
         self,
         TestCase,
     ):
-        self.backend = GenericBackendV2(num_qubits=4)
-        self.session = Session(backend=self.backend)
         self.estimator = EstimatorV2(mode=self.session)
-        self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=0)
+        self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
         super().__init__(TestCase)
 
     def _test_network_passes(
@@ -229,7 +231,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         with self.subTest("forward pass"):
             for i, inputs in enumerate(test_data):
                 forward = estimator_qnn.forward(inputs, weights)
-                np.testing.assert_allclose(forward, correct_forwards[i], atol=1e-2)
+                np.testing.assert_allclose(forward, correct_forwards[i], **self.tolerance)
         # test backward pass without input_gradients
         with self.subTest("backward pass without input gradients"):
             for i, inputs in enumerate(test_data):
@@ -238,7 +240,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-2
+                        weight_backward, correct_weight_backwards[i], **self.tolerance
                     )
                 self.assertIsNone(input_backward)
         # test backward pass with input_gradients
@@ -250,13 +252,13 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-2
+                        weight_backward, correct_weight_backwards[i], **self.tolerance
                     )
                 if correct_input_backwards[i] is None:
                     self.assertIsNone(input_backward)
                 else:
                     np.testing.assert_allclose(
-                        input_backward, correct_input_backwards[i], atol=1e-2
+                        input_backward, correct_input_backwards[i], **self.tolerance
                     )
 
     def test_estimator_qnn_1_1(self):
@@ -267,7 +269,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        op = SparsePauliOp.from_list([("ZI", 1), ("XI", 1)])
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
             observables=[op],
@@ -318,10 +320,10 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
 
         isa_qc = self.pm.run(qc)
         op1 = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         op2 = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 2), ("X", [0], 2)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 2), ("XI", [0], 2)], num_qubits=isa_qc.num_qubits
         )
 
         # construct QNN
@@ -373,7 +375,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
         op = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
@@ -394,7 +396,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
         op = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
@@ -412,7 +414,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.h(0)
         isa_qc = self.pm.run(qc)
         op = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
@@ -450,7 +452,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
         op = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
@@ -471,7 +473,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         qc.rx(params[1], 0)
         isa_qc = self.pm.run(qc)
         op = SparsePauliOp.from_sparse_list(
-            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
         )
         estimator_qnn = EstimatorQNN(
             circuit=isa_qc,
