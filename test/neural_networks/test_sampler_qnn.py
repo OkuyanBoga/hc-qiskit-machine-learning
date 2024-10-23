@@ -25,6 +25,7 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import Sampler
 from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit_ibm_runtime.fake_provider import FakeBoeblingenV2
 
 
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
@@ -99,7 +100,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         # define sampler primitives
         self.sampler = Sampler()
         self.sampler_shots = Sampler(options={"shots": 100, "seed": 42})
-        self.backend = GenericBackendV2(num_qubits=8)
+        self.backend = GenericBackendV2(num_qubits=8) # FakeBoeblingenV2()
         self.session = Session(backend=self.backend)
         self.sampler_v2 = SamplerV2(mode = self.session)
 
@@ -120,6 +121,9 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             sampler = self.sampler_v2
             pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
             self.qc = pm.run(self.qc)
+            # tranpiled = self.qc.layout
+            # print("Dragon")
+            # print(tranpiled.final_virtual_layout())
         else:
             sampler = None
 
