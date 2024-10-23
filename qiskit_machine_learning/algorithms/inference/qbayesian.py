@@ -17,10 +17,10 @@ import copy
 from typing import Tuple, Dict, Set, List
 from qiskit import QuantumCircuit, ClassicalRegister
 from qiskit.quantum_info import Statevector
-from qiskit.circuit.library import GroverOperator
-from qiskit.primitives import BaseSampler, Sampler
 from qiskit.circuit import Qubit
-
+from qiskit.circuit.library import GroverOperator
+from qiskit.primitives import BaseSampler, Sampler, BaseSamplerV2
+from qiskit.result import QuasiDistribution
 
 class QBayesian:
     r"""
@@ -62,7 +62,7 @@ class QBayesian:
         *,
         limit: int = 10,
         threshold: float = 0.9,
-        sampler: BaseSampler | None = None,
+        sampler: BaseSampler | BaseSamplerV2 | None = None,
     ):
         """
         Args:
@@ -83,7 +83,8 @@ class QBayesian:
         # Test valid input
         for qrg in circuit.qregs:
             if qrg.size > 1:
-                raise ValueError("Every register needs to be mapped to exactly one unique qubit")
+                raise ValueError("Every register needs to be mapped to exactly one unique qubit.")
+
         # Initialize parameter
         self._circ = circuit
         self._limit = limit
@@ -142,9 +143,26 @@ class QBayesian:
         # Sample from circuit
         job = self._sampler.run(circuit)
         result = job.result()
-        # Get the counts of quantum state results
-        counts = result.quasi_dists[0].nearest_probability_distribution().binary_probabilities()
+        counts = {}
+
+        if isinstance(self._sampler, BaseSampler):
+            # Get the counts of quantum state results
+            counts = result.quasi_dists[0].nearest_probability_distribution().binary_probabilities()
+
+        elif isinstance(self._sampler, BaseSamplerV2):
+            bitstring_counts = result[0].data.meas.get_counts()
+
+            # Normalize the counts to probabilities
+            total_shots = sum(bitstring_counts.values())
+            probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
+
+            # Convert to quasi-probabilities
+            counts = QuasiDistribution(probabilities)
+            counts = {k: v for k, v in counts.items()}
+
         return counts
+
+
 
     def __power_grover(
         self, grover_op: GroverOperator, evidence: Dict[str, int], k: int
@@ -360,12 +378,12 @@ class QBayesian:
         self._limit = limit
 
     @property
-    def sampler(self) -> BaseSampler:
+    def sampler(self) -> BaseSampler | BaseSamplerV2:
         """Returns the sampler primitive used to compute the samples."""
         return self._sampler
 
     @sampler.setter
-    def sampler(self, sampler: BaseSampler):
+    def sampler(self, sampler: BaseSampler | BaseSamplerV2):
         """Set the sampler primitive used to compute the samples."""
         self._sampler = sampler
 
