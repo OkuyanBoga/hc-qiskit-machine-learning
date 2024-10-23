@@ -17,12 +17,19 @@ import unittest
 from test import QiskitMachineLearningTestCase
 
 import numpy as np
+
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.circuit.library import ZZFeatureMap, RealAmplitudes, ZFeatureMap
 from qiskit.quantum_info import SparsePauliOp
-from qiskit_machine_learning.circuit.library import QNNCircuit
+from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit_ibm_runtime import Session, EstimatorV2
 
+from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.estimator_qnn import EstimatorQNN
+from qiskit_machine_learning.utils import algorithm_globals
+
+algorithm_globals.random_seed = 52
 
 CASE_DATA = {
     "shape_1_1": {
@@ -170,8 +177,20 @@ CASE_DATA = {
 }
 
 
-class TestEstimatorQNN(QiskitMachineLearningTestCase):
-    """EstimatorQNN Tests. The correct references is obtained from EstimatorQNN"""
+class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
+    """EstimatorQNN Tests for estimator_v2. The correct references is obtained from EstimatorQNN"""
+
+    tolerance: dict[str: float] = dict(atol=1.e-3)
+    backend = GenericBackendV2(num_qubits=2)
+    session = Session(backend=backend)
+
+    def __init__(
+        self,
+        TestCase,
+    ):
+        self.estimator = EstimatorV2(mode=self.session, options={"default_shots": 1e2})
+        self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
+        super().__init__(TestCase)
 
     def _test_network_passes(
         self,
@@ -188,7 +207,7 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         with self.subTest("forward pass"):
             for i, inputs in enumerate(test_data):
                 forward = estimator_qnn.forward(inputs, weights)
-                np.testing.assert_allclose(forward, correct_forwards[i], atol=1e-3)
+                np.testing.assert_allclose(forward, correct_forwards[i], **self.tolerance)
         # test backward pass without input_gradients
         with self.subTest("backward pass without input gradients"):
             for i, inputs in enumerate(test_data):
@@ -197,7 +216,7 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-3
+                        weight_backward, correct_weight_backwards[i], **self.tolerance
                     )
                 self.assertIsNone(input_backward)
         # test backward pass with input_gradients
@@ -209,13 +228,13 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
                     self.assertIsNone(weight_backward)
                 else:
                     np.testing.assert_allclose(
-                        weight_backward, correct_weight_backwards[i], atol=1e-3
+                        weight_backward, correct_weight_backwards[i], **self.tolerance
                     )
                 if correct_input_backwards[i] is None:
                     self.assertIsNone(input_backward)
                 else:
                     np.testing.assert_allclose(
-                        input_backward, correct_input_backwards[i], atol=1e-3
+                        input_backward, correct_input_backwards[i], **self.tolerance
                     )
 
     def test_estimator_qnn_1_1(self):
@@ -225,12 +244,15 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_list([("Z" * isa_qc.num_qubits, 1), ("X" * isa_qc.num_qubits, 1)])
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=[params[0]],
             weight_params=[params[1]],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
 
         self._test_network_passes(estimator_qnn, CASE_DATA["shape_1_1"])
@@ -249,12 +271,17 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.ry(params[1], 1)
         qc.rx(params[2], 0)
         qc.rx(params[3], 1)
-        op = SparsePauliOp.from_list([("ZZ", 1), ("XX", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("ZZ", [0, 1], 1), ("XX", [0, 1], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=params[:2],
             weight_params=params[2:],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
 
         self._test_network_passes(estimator_qnn, CASE_DATA["shape_2_1"])
@@ -267,15 +294,22 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
 
-        op1 = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
-        op2 = SparsePauliOp.from_list([("Z", 2), ("X", 2)])
+        isa_qc = self.pm.run(qc)
+        op1 = SparsePauliOp.from_sparse_list(
+            [("Z" * isa_qc.num_qubits, [0], 1), ("X" * isa_qc.num_qubits, [0], 1)], num_qubits=isa_qc.num_qubits
+        )
+        op2 = SparsePauliOp.from_sparse_list(
+            [("Z" * isa_qc.num_qubits, [0], 2), ("X" * isa_qc.num_qubits, [0], 2)], num_qubits=isa_qc.num_qubits
+        )
 
         # construct QNN
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op1, op2],
             input_params=[params[0]],
             weight_params=[params[1]],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
 
         self._test_network_passes(estimator_qnn, CASE_DATA["shape_1_2"])
@@ -294,13 +328,16 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.ry(params[1], 1)
         qc.rx(params[2], 0)
         qc.rx(params[3], 1)
-        op1 = SparsePauliOp.from_list([("ZZ", 1)])
-        op2 = SparsePauliOp.from_list([("XX", 1)])
+        isa_qc = self.pm.run(qc)
+        op1 = SparsePauliOp.from_sparse_list([("ZZ", [0, 1], 1)], num_qubits=isa_qc.num_qubits)
+        op2 = SparsePauliOp.from_sparse_list([("XX", [0, 1], 1)], num_qubits=isa_qc.num_qubits)
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op1, op2],
             input_params=params[:2],
             weight_params=params[2:],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
 
         self._test_network_passes(estimator_qnn, CASE_DATA["shape_2_2"])
@@ -312,12 +349,17 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("Z" * isa_qc.num_qubits, [0], 1), ("X" * isa_qc.num_qubits, [0], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=None,
             weight_params=params,
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_input_parameters"])
 
@@ -328,12 +370,17 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=params,
             weight_params=None,
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_weight_parameters"])
 
@@ -341,12 +388,17 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         """Test Estimator QNN with no parameters."""
         qc = QuantumCircuit(1)
         qc.h(0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=None,
             weight_params=None,
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_parameters"])
 
@@ -357,10 +409,13 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
+        isa_qc = self.pm.run(qc)
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             input_params=[params[0]],
             weight_params=[params[1]],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["default_observables"])
 
@@ -371,12 +426,17 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("Z", [0], 1), ("X", [0], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=op,
             input_params=[params[0]],
             weight_params=[params[1]],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["single_observable"])
 
@@ -387,15 +447,20 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         qc.h(0)
         qc.ry(params[0], 0)
         qc.rx(params[1], 0)
-        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        isa_qc = self.pm.run(qc)
+        op = SparsePauliOp.from_sparse_list(
+            [("ZI", [0], 1), ("XI", [0], 1)], num_qubits=isa_qc.num_qubits
+        )
         estimator_qnn = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             observables=[op],
             input_params=[params[0]],
             weight_params=[params[1]],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
         with self.subTest("Test circuit getter."):
-            self.assertEqual(estimator_qnn.circuit, qc)
+            self.assertEqual(estimator_qnn.circuit, isa_qc)
         with self.subTest("Test observables getter."):
             self.assertEqual(estimator_qnn.observables, [op])
         with self.subTest("Test input_params getter."):
@@ -407,24 +472,35 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
             estimator_qnn.input_gradients = True
             self.assertTrue(estimator_qnn.input_gradients)
 
-    def test_qnn_qc_circui_construction(self):
+    def test_qnn_qc_circuit_construction(self):
         """Test Estimator QNN properties and forward/backward pass for QNNCircuit construction"""
         num_qubits = 2
         feature_map = ZZFeatureMap(feature_dimension=num_qubits)
         ansatz = RealAmplitudes(num_qubits=num_qubits, reps=1)
 
-        qnn_qc = QNNCircuit(num_qubits=num_qubits, feature_map=feature_map, ansatz=ansatz)
         qc = QuantumCircuit(num_qubits)
         qc.compose(feature_map, inplace=True)
         qc.compose(ansatz, inplace=True)
-
+        isa_qc = self.pm.run(qc)
         estimator_qc = EstimatorQNN(
-            circuit=qc,
+            circuit=isa_qc,
             input_params=feature_map.parameters,
             weight_params=ansatz.parameters,
             input_gradients=True,
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
-        estimator_qnn_qc = EstimatorQNN(circuit=qnn_qc, input_gradients=True)
+
+        qnn_qc = QNNCircuit(num_qubits=num_qubits, feature_map=feature_map, ansatz=ansatz)
+        isa_qnn_qc = self.pm.run(qnn_qc)
+        estimator_qnn_qc = EstimatorQNN(
+            circuit=isa_qnn_qc,
+            input_params=feature_map.parameters,
+            weight_params=ansatz.parameters,
+            input_gradients=True,
+            estimator=self.estimator,
+            num_qubits=isa_qnn_qc.num_qubits,
+        )
 
         input_data = [1, 2]
         weights = [1, 2, 3, 4]
@@ -454,10 +530,15 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
         weight = Parameter("weight")
         for i in range(qc.num_qubits):
             qc.rx(weight, i)
-
-        observable1 = SparsePauliOp.from_list([("Z" * qc.num_qubits, 1)])
+        isa_qc = self.pm.run(qc)
+        observable1 = SparsePauliOp.from_list([("Z" * isa_qc.num_qubits, 1)])
         estimator_qnn = EstimatorQNN(
-            circuit=qc, observables=observable1, input_params=input_params, weight_params=[weight]
+            circuit=isa_qc,
+            observables=observable1,
+            input_params=input_params,
+            weight_params=[weight],
+            estimator=self.estimator,
+            num_qubits=isa_qc.num_qubits,
         )
 
         estimator_qnn_weights = [3]
