@@ -188,8 +188,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         self,
         TestCase,
     ):
-        self.estimator = EstimatorV2(mode=self.session, options={"default_shots": 1e2,
-                                                                 "seed_estimator": 52})
+        self.estimator = EstimatorV2(mode=self.session, options={"default_shots": 1e2})
         self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
         super().__init__(TestCase)
 
