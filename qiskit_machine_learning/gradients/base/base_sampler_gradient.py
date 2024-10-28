@@ -45,7 +45,6 @@ class BaseSamplerGradient(ABC):
     def __init__(
         self,
         sampler: BaseSampler,
-<<<<<<< HEAD
         len_quasi_dist: int | None = None,
         options: Options | None = None,
         pass_manager: BasePassManager | None = None,
