@@ -131,6 +131,7 @@ class SamplerQNN(NeuralNetwork):
         self,
         *,
         circuit: QuantumCircuit,
+        num_virtual_qubits: int | None = None,
         sampler: BaseSampler | None = None,
         input_params: Sequence[Parameter] | None = None,
         weight_params: Sequence[Parameter] | None = None,
@@ -181,6 +182,11 @@ class SamplerQNN(NeuralNetwork):
             sampler = Sampler()
         self.sampler = sampler
 
+        if num_virtual_qubits is None:
+            # print statement
+            num_virtual_qubits = circuit.num_qubits
+        self.num_virtual_qubits = num_virtual_qubits
+
         self._org_circuit = circuit
 
         if isinstance(circuit, QNNCircuit):
@@ -196,7 +202,7 @@ class SamplerQNN(NeuralNetwork):
         self.set_interpret(interpret, output_shape)
         # set gradient
         if gradient is None:
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler, output_shape = output_shape)
+            gradient = ParamShiftSamplerGradient(sampler = self.sampler)
         self.gradient = gradient
 
         self._input_gradients = input_gradients
@@ -275,17 +281,13 @@ class SamplerQNN(NeuralNetwork):
             else:
                 output_shape_ = output_shape  # type: ignore
         else:
-            if output_shape is None:
-                if isinstance(self.sampler, BaseSamplerV1):
-                    output_shape_ = (2**self.circuit.num_qubits,)
-                else:
-                    raise QiskitMachineLearningError("Output shape is required for different samplers.")
-            else:
-                if isinstance(output_shape, Integral):
-                    output_shape = int(output_shape)
-                    output_shape_ = (output_shape,)
-                else:
-                    output_shape_ = output_shape  # type: ignore
+            if output_shape is not None:
+                # Warn user that output_shape parameter will be ignored
+                logger.warning(
+                    "No interpret function given, output_shape will be automatically "
+                    "determined as 2^num_virtual_qubits."
+                )
+            output_shape_ = (2**self.num_virtual_qubits,)
         return output_shape_
 
     def _postprocess(self, num_samples: int, result: SamplerResult) -> np.ndarray | SparseArray:
@@ -312,9 +314,11 @@ class SamplerQNN(NeuralNetwork):
                 probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
                 # Convert to quasi-probabilities
                 counts = QuasiDistribution(probabilities)
-                counts = {k: v for k, v in counts.items() if int(k) < self._output_shape[0]}
+                counts = {k: v for k, v in counts.items() if int(k) < 2**self.num_virtual_qubits}
             else:
-                raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")
+                raise QiskitMachineLearningError(
+                    f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+                )
             # evaluate probabilities
             for b, v in counts.items():
                 key = self._interpret(b)
@@ -408,16 +412,19 @@ class SamplerQNN(NeuralNetwork):
         if isinstance(self.sampler, BaseSamplerV1):
             job = self.sampler.run([self._circuit] * num_samples, parameter_values)
         elif isinstance(self.sampler, BaseSamplerV2):
-            job = self.sampler.run([(self._circuit, parameter_values[i]) for i in range(num_samples)])
+            job = self.sampler.run(
+                [(self._circuit, parameter_values[i]) for i in range(num_samples)]
+            )
         else:
-            raise QiskitMachineLearningError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead.")       
+            raise QiskitMachineLearningError(
+                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+            )
 
         try:
             results = job.result()
         except Exception as exc:
             raise QiskitMachineLearningError("Sampler job failed.") from exc
         result = self._postprocess(num_samples, results)
-
         return result
 
     def _backward(
@@ -433,7 +440,6 @@ class SamplerQNN(NeuralNetwork):
 
         if np.prod(parameter_values.shape) > 0:
             circuits = [self._circuit] * num_samples
-
             job = None
             if self._input_gradients:
                 job = self.gradient.run(circuits, parameter_values)

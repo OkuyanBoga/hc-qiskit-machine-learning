@@ -26,12 +26,13 @@ from qiskit.primitives import Sampler
 from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
 
-
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
 from qiskit_machine_learning.utils import algorithm_globals
 
 from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.sampler_qnn import SamplerQNN
+from qiskit_machine_learning.gradients.param_shift.param_shift_sampler_gradient import ParamShiftSamplerGradient
+
 import qiskit_machine_learning.optionals as _optionals
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
@@ -75,6 +76,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self.qc = QuantumCircuit(num_qubits)
         self.qc.append(feature_map, range(2))
         self.qc.append(var_form, range(2))
+        self.num_virtual_qubits = num_qubits
 
         # store params
         self.input_params = list(feature_map.parameters)
@@ -109,16 +111,28 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self, sparse, sampler_type, interpret_id, input_params, weight_params, input_grads
     ):
         """Construct QNN from configuration."""
+        # get interpret setting
+        interpret = None
+        output_shape = None
+        if interpret_id == 1:
+            interpret = self.interpret_1d
+            output_shape = self.output_shape_1d
+        elif interpret_id == 2:
+            interpret = self.interpret_2d
+            output_shape = self.output_shape_2d
 
         # get quantum instance
         if sampler_type == SHOTS:
             sampler = self.sampler_shots
+            gradient = None
         elif sampler_type == DEFAULT:
             sampler = self.sampler
+            gradient = None
         elif sampler_type == V2:
             sampler = self.sampler_v2
             pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
             self.qc = pm.run(self.qc)
+            gradient = ParamShiftSamplerGradient(sampler = self.sampler, len_quasi_dist=2**self.num_virtual_qubits, pass_manager=pm)
         else:
             sampler = None
 
@@ -136,11 +150,13 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         qnn = SamplerQNN(
             sampler=sampler,
             circuit=self.qc,
+            num_virtual_qubits=self.num_virtual_qubits,
             input_params=input_params,
             weight_params=weight_params,
             sparse=sparse,
             interpret=interpret,
             output_shape=output_shape,
+            gradient=gradient,
             input_gradients=input_grads,
         )
         return qnn
@@ -357,7 +373,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             sampler_qnn.input_gradients = True
             self._verify_qnn(sampler_qnn, 1, input_data=None, weights=None)
 
-    def test_qnn_qc_circui_construction(self):
+    def test_qnn_qc_circuit_construction(self):
         """Test Sampler QNN properties and forward/backward pass for QNNCircuit construction"""
         num_qubits = 2
         feature_map = ZZFeatureMap(feature_dimension=num_qubits)
