@@ -101,6 +101,9 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             isa_g_circs = self._pass_manager.run(job_circuits)
             circ_params = [(isa_g_circs[i],job_param_values[i]) for i in range(len(job_param_values))]   
             job = self._sampler.run(circ_params)
+            print("DEBUG ParamShift")
+            print(type(self._sampler), type(job))
+            print("v2status", job.done(), job.in_final_state())
         else:
             raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
         

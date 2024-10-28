@@ -25,6 +25,7 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import Sampler
 from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit_ibm_runtime.fake_provider import FakeBoeblingenV2
 
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
 from qiskit_machine_learning.utils import algorithm_globals
@@ -101,12 +102,13 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         # define sampler primitives
         self.sampler = Sampler()
         self.sampler_shots = Sampler(options={"shots": 100, "seed": 42})
-        self.backend = GenericBackendV2(num_qubits=8)
+        self.backend = GenericBackendV2(num_qubits=8) # FakeBoeblingenV2()
         self.session = Session(backend=self.backend)
         self.sampler_v2 = SamplerV2(mode = self.session)
 
         self.array_type = {True: SparseArray, False: np.ndarray}
 
+    # pylint: disable=too-many-positional-arguments
     def _get_qnn(
         self, sparse, sampler_type, interpret_id, input_params, weight_params, input_grads
     ):
@@ -132,7 +134,13 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             sampler = self.sampler_v2
             pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
             self.qc = pm.run(self.qc)
+<<<<<<< HEAD
             gradient = ParamShiftSamplerGradient(sampler = self.sampler, len_quasi_dist=2**self.num_virtual_qubits, pass_manager=pm)
+=======
+            # tranpiled = self.qc.layout
+            # print("Dragon")
+            # print(tranpiled.final_virtual_layout())
+>>>>>>> 0041162ac9b8f3a5e9370a9cc1e41c9015ee8b14
         else:
             sampler = None
 

@@ -45,8 +45,13 @@ class BaseSamplerGradient(ABC):
     def __init__(
         self,
         sampler: BaseSampler,
+<<<<<<< HEAD
         len_quasi_dist: int | None = None,
         options: Options | None = None,
+=======
+        options: Options | None = None,
+        output_shape: int | None = None,
+>>>>>>> 0041162ac9b8f3a5e9370a9cc1e41c9015ee8b14
         pass_manager: BasePassManager | None = None,
     ):
         """
@@ -59,8 +64,14 @@ class BaseSamplerGradient(ABC):
         """
         self._sampler: BaseSampler = sampler
         self._default_options = Options()
+<<<<<<< HEAD
         self._pass_manager = pass_manager
         self._len_quasi_dist = len_quasi_dist
+=======
+        self._output_shape = output_shape
+        self._output_shape = output_shape
+        self._pass_manager = pass_manager
+>>>>>>> 0041162ac9b8f3a5e9370a9cc1e41c9015ee8b14
         if options is not None:
             self._default_options.update_options(**options)
         self._gradient_circuit_cache: dict[tuple, GradientCircuit] = {}
