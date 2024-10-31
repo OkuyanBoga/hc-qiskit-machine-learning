@@ -113,7 +113,7 @@ class EstimatorQNN(NeuralNetwork):
         weight_params: Sequence[Parameter] | None = None,
         gradient: BaseEstimatorGradient | None = None,
         input_gradients: bool = False,
-        num_qubits: int | None = None,
+        num_virtual_qubits: int | None = None,
         default_precision: float = 0.015625,
     ):
         r"""
@@ -145,7 +145,7 @@ class EstimatorQNN(NeuralNetwork):
                 Note that this parameter is ``False`` by default, and must be explicitly set to
                 ``True`` for a proper gradient computation when using
                 :class:`~qiskit_machine_learning.connectors.TorchConnector`.
-            num_qubits: Number of qubits for actual circuit.
+            num_virtual_qubits: Number of virtual qubits.
             default_precision: The default precision for the estimator if not specified during run.
 
         Raises:
@@ -156,20 +156,20 @@ class EstimatorQNN(NeuralNetwork):
         self.estimator = estimator
         self._org_circuit = circuit
 
-        if num_qubits is None:
-            self.num_qubits = circuit.num_qubits
+        if num_virtual_qubits is None:
+            self.num_virtual_qubits = circuit.num_qubits
             warnings.warn(
-                f"No number of qubits was not specified ({num_qubits}) and was retrieved from "
-                + f"`circuit` ({self.num_qubits:d}). If `circuit` is transpiled, this may cause "
+                f"No number of qubits was not specified ({num_virtual_qubits}) and was retrieved from "
+                + f"`circuit` ({self.num_virtual_qubits:d}). If `circuit` is transpiled, this may cause "
                 + "unstable behaviour.",
                 UserWarning,
                 stacklevel=2,
             )
         else:
-            self.num_qubits = num_qubits
+            self.num_virtual_qubits = num_virtual_qubits
 
         if observables is None:
-            observables = SparsePauliOp.from_list([("Z" * self.num_qubits, 1)])
+            observables = SparsePauliOp.from_list([("Z" * self.num_virtual_qubits, 1)])
 
         if isinstance(observables, BaseOperator):
             observables = (observables,)
