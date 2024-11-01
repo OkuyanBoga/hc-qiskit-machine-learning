@@ -184,7 +184,12 @@ class EstimatorQNN(NeuralNetwork):
             self._weight_params = list(weight_params) if weight_params is not None else []
 
         if gradient is None:
-            gradient = ParamShiftEstimatorGradient(self.estimator)
+            if isinstance(self.estimator, BaseEstimatorV2):
+                raise QiskitMachineLearningError(
+                    "Please provide a gradient with pass manager initialised."
+                            )
+            else:
+                gradient = ParamShiftEstimatorGradient(self.estimator)
 
         self._default_precision = default_precision
         self.gradient = gradient
@@ -263,7 +268,7 @@ class EstimatorQNN(NeuralNetwork):
             for _ in range(num_samples):
                 for observable in self._observables:
                     circuit_observable_params.append(
-                        (self._circuit, [observable], parameter_values_)
+                        (self._circuit, [observable], np.tile(parameter_values_, (self.output_shape[0], 1)))
                     )
 
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision

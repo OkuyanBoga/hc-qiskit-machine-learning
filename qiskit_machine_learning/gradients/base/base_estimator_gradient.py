@@ -29,6 +29,7 @@ from qiskit.primitives.utils import _circuit_key
 from qiskit.providers import Options
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.transpiler.passes import TranslateParameterizedGates
+from qiskit.transpiler.passmanager import BasePassManager
 
 from .estimator_gradient_result import EstimatorGradientResult
 from ..utils import (
@@ -48,12 +49,14 @@ class BaseEstimatorGradient(ABC):
     def __init__(
         self,
         estimator: BaseEstimator | BaseEstimatorV2,
+        pass_manager: BasePassManager | None = None,
         options: Options | None = None,
         derivative_type: DerivativeType = DerivativeType.REAL,
     ):
         r"""
         Args:
             estimator: The estimator used to compute the gradients.
+            pass_manager: pass manager for isa_circuit transpilation.
             options: Primitive backend runtime options used for circuit execution.
                 The order of priority is: options in ``run`` method > gradient's
                 default options > primitive's default setting.
@@ -70,6 +73,7 @@ class BaseEstimatorGradient(ABC):
                 finite difference.
         """
         self._estimator = estimator
+        self._pass_manager = pass_manager
         self._default_options = Options()
         if options is not None:
             self._default_options.update_options(**options)

@@ -104,9 +104,10 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
 
         # Determine how to run the estimator based on its version
         if isinstance(self._estimator, BaseEstimatorV1):
+            isa_g_circs = self._pass_manager.run(job_circuits)
             # Run the single job with all circuits.
             job = self._estimator.run(
-                job_circuits,
+                isa_g_circs,
                 job_observables,
                 job_param_values,
                 **options,
