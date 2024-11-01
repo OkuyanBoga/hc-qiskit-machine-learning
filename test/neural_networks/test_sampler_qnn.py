@@ -25,7 +25,6 @@ from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import Sampler
 from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
-from qiskit_ibm_runtime.fake_provider import FakeBoeblingenV2
 
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
 from qiskit_machine_learning.utils import algorithm_globals
@@ -132,9 +131,10 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             gradient = None
         elif sampler_type == V2:
             sampler = self.sampler_v2
-            pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
-            self.qc = pm.run(self.qc)
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler, len_quasi_dist=2**self.num_virtual_qubits, pass_manager=pm)
+            if self.qc.layout is None:
+                self.pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
+                self.qc = self.pm.run(self.qc)
+            gradient = ParamShiftSamplerGradient(sampler = self.sampler, len_quasi_dist=2**self.num_virtual_qubits, pass_manager=self.pm)
         else:
             sampler = None
 

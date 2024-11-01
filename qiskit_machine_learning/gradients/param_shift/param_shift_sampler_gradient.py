@@ -28,7 +28,7 @@ from ..base.base_sampler_gradient import BaseSamplerGradient
 from ..base.sampler_gradient_result import SamplerGradientResult
 from ..utils import _make_param_shift_parameter_values
 
-from ...exceptions import AlgorithmError
+from ...exceptions import AlgorithmError, QiskitMachineLearningError
 
 
 class ParamShiftSamplerGradient(BaseSamplerGradient):
@@ -98,12 +98,11 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         if isinstance(self._sampler, BaseSamplerV1):
             job = self._sampler.run(job_circuits, job_param_values, **options)
         elif isinstance(self._sampler, BaseSamplerV2):
+            if self._pass_manager is None:
+                raise QiskitMachineLearningError("To use ParameterShifSamplerGradient with SamplerV2 you must pass a gradient with a pass manager")
             isa_g_circs = self._pass_manager.run(job_circuits)
             circ_params = [(isa_g_circs[i],job_param_values[i]) for i in range(len(job_param_values))]   
             job = self._sampler.run(circ_params)
-            print("DEBUG ParamShift")
-            print(type(self._sampler), type(job))
-            print("v2status", job.done(), job.in_final_state())
         else:
             raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
         
