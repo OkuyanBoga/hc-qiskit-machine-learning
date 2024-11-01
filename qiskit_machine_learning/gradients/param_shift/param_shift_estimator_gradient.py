@@ -104,10 +104,9 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
 
         # Determine how to run the estimator based on its version
         if isinstance(self._estimator, BaseEstimatorV1):
-            isa_g_circs = self._pass_manager.run(job_circuits)
             # Run the single job with all circuits.
             job = self._estimator.run(
-                isa_g_circs,
+                job_circuits,
                 job_observables,
                 job_param_values,
                 **options,
@@ -126,9 +125,10 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             opt = self._get_local_options(options)
 
         elif isinstance(self._estimator, BaseEstimatorV2):
+            isa_g_circs = self._pass_manager.run(job_circuits)
             # Prepare circuit-observable-parameter tuples (PUBs)
             circuit_observable_params = []
-            for pub in zip(job_circuits, job_observables, job_param_values):
+            for pub in zip(isa_g_circs, job_observables, job_param_values):
                 circuit_observable_params.append(pub)
 
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
