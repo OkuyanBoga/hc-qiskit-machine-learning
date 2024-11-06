@@ -409,7 +409,7 @@ class TestEstimatorQNN(QiskitMachineLearningTestCase):
             estimator_qnn.input_gradients = True
             self.assertTrue(estimator_qnn.input_gradients)
 
-    def test_qnn_qc_circui_construction(self):
+    def test_qnn_qc_circuit_construction(self):
         """Test Estimator QNN properties and forward/backward pass for QNNCircuit construction"""
         num_qubits = 2
         feature_map = ZZFeatureMap(feature_dimension=num_qubits)

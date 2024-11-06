@@ -169,7 +169,7 @@ class EstimatorQNN(NeuralNetwork):
             self.num_virtual_qubits = num_virtual_qubits
 
         if observables is None:
-            observables = SparsePauliOp.from_list([("Z" * self.num_virtual_qubits, 1)])
+            observables = SparsePauliOp.from_sparse_list([("Z"*self.num_virtual_qubits, range(self.num_virtual_qubits), 1)], num_qubits=self.circuit.num_qubits)
 
         if isinstance(observables, BaseOperator):
             observables = (observables,)
@@ -253,7 +253,6 @@ class EstimatorQNN(NeuralNetwork):
 
         # Determine how to run the estimator based on its version
         if isinstance(self.estimator, BaseEstimatorV1):
-
             job = self.estimator.run(
                 [self._circuit] * num_samples * self.output_shape[0],
                 [op for op in self._observables for _ in range(num_samples)],
@@ -262,19 +261,15 @@ class EstimatorQNN(NeuralNetwork):
             results = job.result().values
 
         elif isinstance(self.estimator, BaseEstimatorV2):
-
             # Prepare circuit-observable-parameter tuples (PUBs)
             circuit_observable_params = []
-            for _ in range(num_samples):
-                for observable in self._observables:
-                    circuit_observable_params.append(
-                        (self._circuit, [observable], np.tile(parameter_values_, (self.output_shape[0], 1)))
+            for observable in self._observables:
+                circuit_observable_params.append(
+                        (self._circuit, observable, parameter_values_)
                     )
-
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
             job = self.estimator.run(circuit_observable_params, precision=self._default_precision)
-            results = [result.data.evs[0] for result in job.result()]
-
+            results = [result.data.evs for result in job.result()]
         else:
             raise QiskitMachineLearningError(
                 "The accepted estimators are BaseEstimatorV1 and BaseEstimatorV2; got "
