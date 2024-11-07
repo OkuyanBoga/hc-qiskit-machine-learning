@@ -22,19 +22,20 @@ from test import QiskitMachineLearningTestCase
 
 import numpy as np
 from ddt import ddt, idata, unpack
+from sklearn.svm import SVC
+
 from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import ZFeatureMap
 from qiskit.primitives import Sampler
-from qiskit_algorithms import AlgorithmJob
-from qiskit_algorithms.utils import algorithm_globals
-from qiskit_algorithms.state_fidelities import (
+
+from qiskit_machine_learning.algorithm_job import AlgorithmJob
+from qiskit_machine_learning.utils import algorithm_globals
+from qiskit_machine_learning.state_fidelities import (
     ComputeUncompute,
     BaseStateFidelity,
     StateFidelityResult,
 )
-from sklearn.svm import SVC
-
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 
 
@@ -106,11 +107,29 @@ class TestFidelityQuantumKernel(QiskitMachineLearningTestCase):
 
         self.assertGreaterEqual(score, 0.5)
 
+    def test_max_circuits_per_job(self):
+        """Test max_circuits_per_job parameters."""
+        kernel_all = FidelityQuantumKernel(feature_map=self.feature_map, max_circuits_per_job=None)
+        kernel_matrix_all = kernel_all.evaluate(x_vec=self.sample_train)
+        with self.subTest("Check when max_circuits_per_job > left_parameters"):
+            kernel_more = FidelityQuantumKernel(
+                feature_map=self.feature_map, max_circuits_per_job=20
+            )
+            kernel_matrix_more = kernel_more.evaluate(x_vec=self.sample_train)
+            np.testing.assert_equal(kernel_matrix_all, kernel_matrix_more)
+        with self.subTest("Check when max_circuits_per_job = 1"):
+            kernel_1 = FidelityQuantumKernel(feature_map=self.feature_map, max_circuits_per_job=1)
+            kernel_matrix_1 = kernel_1.evaluate(x_vec=self.sample_train)
+            np.testing.assert_equal(kernel_matrix_all, kernel_matrix_1)
+
     def test_exceptions(self):
         """Test quantum kernel raises exceptions and warnings."""
         with self.assertRaises(ValueError, msg="Unsupported value of 'evaluate_duplicates'."):
             _ = FidelityQuantumKernel(evaluate_duplicates="wrong")
+        with self.assertRaises(ValueError, msg="Unsupported value of 'max_circuits_per_job'."):
+            _ = FidelityQuantumKernel(max_circuits_per_job=-1)
 
+    # pylint: disable=too-many-positional-arguments
     @idata(
         # params, fidelity, feature map, enforce_psd, duplicate
         itertools.product(
@@ -134,6 +153,7 @@ class TestFidelityQuantumKernel(QiskitMachineLearningTestCase):
 
         np.testing.assert_allclose(kernel_matrix, solution, rtol=1e-4, atol=1e-10)
 
+    # pylint: disable=too-many-positional-arguments
     @idata(
         itertools.product(
             ["samples_1", "samples_4"],
@@ -261,7 +281,7 @@ class TestFidelityQuantumKernel(QiskitMachineLearningTestCase):
             ) -> QuantumCircuit:
                 raise NotImplementedError()
 
-            def _run(
+            def _run(  # type: ignore[override]
                 self,
                 circuits_1: QuantumCircuit | Sequence[QuantumCircuit],
                 circuits_2: QuantumCircuit | Sequence[QuantumCircuit],
@@ -272,24 +292,11 @@ class TestFidelityQuantumKernel(QiskitMachineLearningTestCase):
                 values = np.asarray(values_1)
                 fidelities = np.full(values.shape[0], -0.5)
 
-                # Qiskit algorithms changed the internals of the base state fidelity
-                # class and what this method returns to avoid a threading issue. See
-                # https://github.com/qiskit-community/qiskit-algorithms/pull/92 for
-                # more information. That pull request will land in 0.3.0. I made
-                # this test work with the current released version 0.2.2, so tests
-                # pass at present, but in the future this logic can be reduced to
-                # just that needed for 0.3.0 and above if desired when testing against
-                # earlier algorithm versions is no longer needed or wanted.
-                from qiskit_algorithms import __version__ as algs_version
-
-                if algs_version < "0.3.0":
-                    return StateFidelityResult(fidelities, [], {}, options)
-                else:
-                    return AlgorithmJob(MockFidelity._call, fidelities, options)
+                return AlgorithmJob(MockFidelity._call, fidelities, options)
 
             @staticmethod
             def _call(fidelities, options) -> StateFidelityResult:
-                return StateFidelityResult(fidelities, [], {}, options)
+                return StateFidelityResult(fidelities, [], {}, options)  # type: ignore[arg-type]
 
         with self.subTest("No PSD enforcement"):
             kernel = FidelityQuantumKernel(fidelity=MockFidelity(), enforce_psd=False)

@@ -1,6 +1,6 @@
 # This code is part of a Qiskit project.
 #
-# (C) Copyright IBM 2022, 2023.
+# (C) Copyright IBM 2022, 2024.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -18,8 +18,8 @@ from typing import Union, List, Tuple
 import numpy as np
 from scipy.special import logsumexp
 
-from qiskit_algorithms.utils import algorithm_globals
-from qiskit_machine_learning import QiskitMachineLearningError
+from ..utils import algorithm_globals
+from ..exceptions import QiskitMachineLearningError
 from .estimator_qnn import EstimatorQNN
 from .neural_network import NeuralNetwork
 
@@ -43,7 +43,6 @@ class EffectiveDimension:
         weight_samples: Union[np.ndarray, int] = 1,
         input_samples: Union[np.ndarray, int] = 1,
     ) -> None:
-
         """
         Args:
             qnn: A Qiskit :class:`~qiskit_machine_learning.neural_networks.NeuralNetwork`,
@@ -148,7 +147,7 @@ class EffectiveDimension:
             (self._num_input_samples * self._num_weight_samples, self._model.output_shape[0])
         )
 
-        for (i, param_set) in enumerate(self._weight_samples):
+        for i, param_set in enumerate(self._weight_samples):
             t_before_forward = time.time()
             forward_pass = np.asarray(
                 self._model.forward(input_data=self._input_samples, weights=param_set)
@@ -253,7 +252,6 @@ class EffectiveDimension:
         normalized_fisher: np.ndarray,
         dataset_size: Union[List[int], np.ndarray, int],
     ) -> Union[np.ndarray, int]:
-
         if not isinstance(dataset_size, int) and len(dataset_size) > 1:
             # expand dims for broadcasting
             normalized_fisher = np.expand_dims(normalized_fisher, axis=0)
