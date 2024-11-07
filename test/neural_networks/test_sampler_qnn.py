@@ -84,9 +84,6 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self.input_params = list(feature_map.parameters)
         self.weight_params = list(var_form.parameters)
 
-        # Initialize a default pass manager
-        self.pm = generate_preset_pass_manager(optimization_level=1)
-
         # define interpret functions
         def interpret_1d(x):
             return sum((s == "1" for s in f"{x:0b}")) % 2
