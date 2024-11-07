@@ -217,7 +217,7 @@ class TestQBayesianInferenceV2(QiskitMachineLearningTestCase):
     backend = GenericBackendV2(num_qubits=3)
     session = Session(backend=backend)
     _sampler = SamplerV2(mode=session)
-    _sampler.options.default_shots = 2 ** 7
+    _sampler.options.default_shots = 2**7
 
     def setUp(self):
         super().setUp()
@@ -397,6 +397,7 @@ class TestQBayesianInferenceV2(QiskitMachineLearningTestCase):
                 )
             )
         )
+
 
 if __name__ == "__main__":
     unittest.main()

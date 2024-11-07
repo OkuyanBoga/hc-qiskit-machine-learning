@@ -199,7 +199,7 @@ class SamplerQNN(NeuralNetwork):
 
         # set gradient
         if gradient is None:
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler)
+            gradient = ParamShiftSamplerGradient(sampler=self.sampler)
         self.gradient = gradient
 
         self._input_gradients = input_gradients

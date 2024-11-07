@@ -26,7 +26,6 @@ from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit.providers.fake_provider import GenericBackendV2
 
 
-
 class QBayesian:
     r"""
     Implements a quantum Bayesian inference (QBI) algorithm that has been developed in [1]. The
@@ -180,8 +179,6 @@ class QBayesian:
             # counts = {k: v for k, v in counts.items()}
 
         return counts
-
-
 
     def __power_grover(
         self, grover_op: GroverOperator, evidence: Dict[str, int], k: int

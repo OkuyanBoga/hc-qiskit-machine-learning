@@ -90,12 +90,15 @@ class ComputeUncompute(BaseStateFidelity):
         """
         if (not isinstance(sampler, BaseSampler)) and (not isinstance(sampler, BaseSamplerV2)):
             raise ValueError(
-                f"The sampler should be an instance of BaseSampler or BaseSamplerV2, " f"but got {type(sampler)}"
+                f"The sampler should be an instance of BaseSampler or BaseSamplerV2, "
+                f"but got {type(sampler)}"
             )
-        if isinstance(sampler, BaseSamplerV2) and (pass_manager is None) and not isinstance(sampler, StatevectorSampler):
-            raise ValueError(
-                f"A pass_manager should be provided for {type(sampler)}."
-            )
+        if (
+            isinstance(sampler, BaseSamplerV2)
+            and (pass_manager is None)
+            and not isinstance(sampler, StatevectorSampler)
+        ):
+            raise ValueError(f"A pass_manager should be provided for {type(sampler)}.")
         if (pass_manager is not None) and (num_virtual_qubits is None):
             raise ValueError(
                 f"Number of virtual qubits should be provided for {type(pass_manager)}."
@@ -178,20 +181,39 @@ class ComputeUncompute(BaseStateFidelity):
         opts = copy(self._default_options)
         opts.update_options(**options)
         if isinstance(self._sampler, BaseSamplerV1):
-            sampler_job = self._sampler.run(circuits=circuits, parameter_values=values, **opts.__dict__)
+            sampler_job = self._sampler.run(
+                circuits=circuits, parameter_values=values, **opts.__dict__
+            )
             local_opts = self._get_local_options(opts.__dict__)
         elif isinstance(self._sampler, BaseSamplerV2):
-            sampler_job = self._sampler.run([(circuits[i], values[i]) for i in range(len(circuits))], **opts.__dict__)
+            sampler_job = self._sampler.run(
+                [(circuits[i], values[i]) for i in range(len(circuits))], **opts.__dict__
+            )
             local_opts = opts.__dict__
         else:
             raise QiskitMachineLearningError(
                 f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
             )
-        return AlgorithmJob(ComputeUncompute._call, sampler_job, circuits, self._local, local_opts, self._sampler, self._post_process_v2, self.num_virtual_qubits)
+        return AlgorithmJob(
+            ComputeUncompute._call,
+            sampler_job,
+            circuits,
+            self._local,
+            local_opts,
+            self._sampler,
+            self._post_process_v2,
+            self.num_virtual_qubits,
+        )
 
     @staticmethod
     def _call(
-        job: PrimitiveJob, circuits: Sequence[QuantumCircuit], local: bool, local_opts: Options = None, _sampler = None, _post_process_v2 = None, num_virtual_qubits = None
+        job: PrimitiveJob,
+        circuits: Sequence[QuantumCircuit],
+        local: bool,
+        local_opts: Options = None,
+        _sampler=None,
+        _post_process_v2=None,
+        num_virtual_qubits=None,
     ) -> StateFidelityResult:
         try:
             result = job.result()
@@ -256,7 +278,7 @@ class ComputeUncompute(BaseStateFidelity):
         opts = copy(self._sampler.options)
         opts.update_options(**options)
         return opts
-    
+
     def _post_process_v2(self, result: SamplerResult):
         quasis = []
         for i in range(len(result)):
@@ -271,7 +293,7 @@ class ComputeUncompute(BaseStateFidelity):
             quasi_probs = {k: v for k, v in counts.items() if int(k) < 2**self.num_virtual_qubits}
             quasis.append(quasi_probs)
         return quasis
-    
+
     @staticmethod
     def _get_global_fidelity(probability_distribution: dict[int, float]) -> float:
         """Process the probability distribution of a measurement to determine the

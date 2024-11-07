@@ -39,7 +39,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
     [1] Schuld, M., Bergholm, V., Gogolin, C., Izaac, J., and Killoran, N. Evaluating analytic
     gradients on quantum hardware, `DOI <https://doi.org/10.1103/PhysRevA.99.032331>`_
     """
- 
+
     SUPPORTED_GATES = [
         "x",
         "y",
@@ -99,13 +99,19 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             job = self._sampler.run(job_circuits, job_param_values, **options)
         elif isinstance(self._sampler, BaseSamplerV2):
             if self._pass_manager is None:
-                raise QiskitMachineLearningError("To use ParameterShifSamplerGradient with SamplerV2 you must pass a gradient with a pass manager")
+                raise QiskitMachineLearningError(
+                    "To use ParameterShifSamplerGradient with SamplerV2 you must pass a gradient with a pass manager"
+                )
             isa_g_circs = self._pass_manager.run(job_circuits)
-            circ_params = [(isa_g_circs[i],job_param_values[i]) for i in range(len(job_param_values))]   
+            circ_params = [
+                (isa_g_circs[i], job_param_values[i]) for i in range(len(job_param_values))
+            ]
             job = self._sampler.run(circ_params)
         else:
-            raise AlgorithmError(f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead.") 
-        
+            raise AlgorithmError(
+                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead."
+            )
+
         try:
             results = job.result()
         except Exception as exc:
@@ -121,7 +127,7 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
                 opt = self._get_local_options(options)
             elif isinstance(self._sampler, BaseSamplerV2):
                 result = []
-                for i in range(partial_sum_n,partial_sum_n + n):
+                for i in range(partial_sum_n, partial_sum_n + n):
                     bitstring_counts = results[i].data.meas.get_counts()
                     # Normalize the counts to probabilities
                     total_shots = sum(bitstring_counts.values())
@@ -140,6 +146,5 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
                 gradient.append(dict(grad_dist))
             gradients.append(gradient)
             partial_sum_n += n
-        
-        return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)
 
+        return SamplerGradientResult(gradients=gradients, metadata=metadata, options=opt)

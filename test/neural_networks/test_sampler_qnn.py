@@ -31,7 +31,9 @@ from qiskit_machine_learning.utils import algorithm_globals
 
 from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.sampler_qnn import SamplerQNN
-from qiskit_machine_learning.gradients.param_shift.param_shift_sampler_gradient import ParamShiftSamplerGradient
+from qiskit_machine_learning.gradients.param_shift.param_shift_sampler_gradient import (
+    ParamShiftSamplerGradient,
+)
 
 import qiskit_machine_learning.optionals as _optionals
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
@@ -103,7 +105,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self.sampler_shots = Sampler(options={"shots": 100, "seed": 42})
         self.backend = GenericBackendV2(num_qubits=8)
         self.session = Session(backend=self.backend)
-        self.sampler_v2 = SamplerV2(mode = self.session)
+        self.sampler_v2 = SamplerV2(mode=self.session)
 
         self.array_type = {True: SparseArray, False: np.ndarray}
 
@@ -134,7 +136,11 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             if self.qc.layout is None:
                 self.pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
                 self.qc = self.pm.run(self.qc)
-            gradient = ParamShiftSamplerGradient(sampler = self.sampler, len_quasi_dist=2**self.num_virtual_qubits, pass_manager=self.pm)
+            gradient = ParamShiftSamplerGradient(
+                sampler=self.sampler,
+                len_quasi_dist=2**self.num_virtual_qubits,
+                pass_manager=self.pm,
+            )
         else:
             sampler = None
 
