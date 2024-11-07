@@ -77,6 +77,7 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self.qc = QuantumCircuit(num_qubits)
         self.qc.append(feature_map, range(2))
         self.qc.append(var_form, range(2))
+        self.qc.measure_all()
         self.num_virtual_qubits = num_qubits
 
         # store params
