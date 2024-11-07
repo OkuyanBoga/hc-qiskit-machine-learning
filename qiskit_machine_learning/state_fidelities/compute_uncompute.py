@@ -21,7 +21,6 @@ from qiskit import QuantumCircuit
 
 from qiskit.primitives import BaseSampler, BaseSamplerV1, SamplerResult, StatevectorSampler
 from qiskit.primitives.base import BaseSamplerV2
-from ..exceptions import QiskitMachineLearningError
 
 from qiskit.transpiler.passmanager import PassManager
 from qiskit.result import QuasiDistribution
@@ -29,7 +28,7 @@ from qiskit.result import QuasiDistribution
 from qiskit.primitives.primitive_job import PrimitiveJob
 from qiskit.providers import Options
 
-from ..exceptions import AlgorithmError
+from ..exceptions import AlgorithmError, QiskitMachineLearningError
 from .base_state_fidelity import BaseStateFidelity
 from .state_fidelity_result import StateFidelityResult
 from ..algorithm_job import AlgorithmJob
@@ -61,6 +60,7 @@ class ComputeUncompute(BaseStateFidelity):
     def __init__(
         self,
         sampler: BaseSampler | BaseSamplerV2,
+        *,
         num_virtual_qubits: int | None = None,
         pass_manager: PassManager | None = None,
         options: Options | None = None,
@@ -192,7 +192,8 @@ class ComputeUncompute(BaseStateFidelity):
             local_opts = opts.__dict__
         else:
             raise QiskitMachineLearningError(
-                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+                "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got"
+                + f" {type(self.sampler)} instead."
             )
         return AlgorithmJob(
             ComputeUncompute._call,

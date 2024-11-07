@@ -14,27 +14,26 @@
 
 from __future__ import annotations
 import logging
+from numbers import Integral
+from typing import Callable, cast, Iterable, Sequence
+import numpy as np
 
 from qiskit.primitives import BaseSamplerV1
 from qiskit.primitives.base import BaseSamplerV2
 
-from numbers import Integral
-from typing import Callable, cast, Iterable, Sequence
-
-import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseSampler, SamplerResult, Sampler
+from qiskit.result import QuasiDistribution
+
+import qiskit_machine_learning.optionals as _optionals
+
 from ..gradients import (
     BaseSamplerGradient,
     ParamShiftSamplerGradient,
     SamplerGradientResult,
 )
-from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
-from qiskit.result import QuasiDistribution
-
 from ..circuit.library import QNNCircuit
 from ..exceptions import QiskitMachineLearningError
-import qiskit_machine_learning.optionals as _optionals
 
 from .neural_network import NeuralNetwork
 
@@ -316,7 +315,8 @@ class SamplerQNN(NeuralNetwork):
                 counts = {k: v for k, v in counts.items() if int(k) < 2**self.num_virtual_qubits}
             else:
                 raise QiskitMachineLearningError(
-                    f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+                    "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; "
+                    + f"got {type(self.sampler)} instead."
                 )
             # evaluate probabilities
             for b, v in counts.items():
@@ -416,7 +416,8 @@ class SamplerQNN(NeuralNetwork):
             )
         else:
             raise QiskitMachineLearningError(
-                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self.sampler)} instead."
+                "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; "
+                + f"got {type(self.sampler)} instead."
             )
         try:
             results = job.result()

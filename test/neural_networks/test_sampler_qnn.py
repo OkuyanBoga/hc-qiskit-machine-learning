@@ -23,20 +23,19 @@ from ddt import ddt, idata
 
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import Sampler
-from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
-
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
-from qiskit_machine_learning.utils import algorithm_globals
 
+from qiskit_ibm_runtime import Session, SamplerV2
+
+from qiskit_machine_learning.utils import algorithm_globals
 from qiskit_machine_learning.circuit.library import QNNCircuit
 from qiskit_machine_learning.neural_networks.sampler_qnn import SamplerQNN
 from qiskit_machine_learning.gradients.param_shift.param_shift_sampler_gradient import (
     ParamShiftSamplerGradient,
 )
-
 import qiskit_machine_learning.optionals as _optionals
-from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
 if _optionals.HAS_SPARSE:
     # pylint: disable=import-error
@@ -84,6 +83,9 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
         self.input_params = list(feature_map.parameters)
         self.weight_params = list(var_form.parameters)
 
+        # Initialize a default pass manager
+        self.pm = generate_preset_pass_manager(optimization_level=1)
+
         # define interpret functions
         def interpret_1d(x):
             return sum((s == "1" for s in f"{x:0b}")) % 2
@@ -125,14 +127,14 @@ class TestSamplerQNN(QiskitMachineLearningTestCase):
             output_shape = self.output_shape_2d
 
         # get quantum instance
+        gradient = None
         if sampler_type == SHOTS:
             sampler = self.sampler_shots
-            gradient = None
         elif sampler_type == DEFAULT:
             sampler = self.sampler
-            gradient = None
         elif sampler_type == V2:
             sampler = self.sampler_v2
+
             if self.qc.layout is None:
                 self.pm = generate_preset_pass_manager(optimization_level=1, backend=self.backend)
                 self.qc = self.pm.run(self.qc)

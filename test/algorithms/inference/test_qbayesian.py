@@ -15,14 +15,14 @@
 import unittest
 from test import QiskitMachineLearningTestCase
 
-import numpy as np
 import copy
+import numpy as np
 
 from qiskit import QuantumCircuit
 from qiskit.circuit import QuantumRegister
 from qiskit.primitives import Sampler
-from qiskit_ibm_runtime import Session, SamplerV2
 from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit_ibm_runtime import Session, SamplerV2
 
 from qiskit_machine_learning.utils import algorithm_globals
 from qiskit_machine_learning.algorithms import QBayesian

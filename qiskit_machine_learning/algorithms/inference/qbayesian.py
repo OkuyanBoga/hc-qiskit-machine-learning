@@ -15,12 +15,12 @@ from __future__ import annotations
 
 import copy
 from typing import Tuple, Dict, Set, List
+
 from qiskit import QuantumCircuit, ClassicalRegister
 from qiskit.quantum_info import Statevector
 from qiskit.circuit import Qubit
 from qiskit.circuit.library import GroverOperator
 from qiskit.primitives import BaseSampler, Sampler, BaseSamplerV2
-from qiskit.result import QuasiDistribution
 from qiskit.transpiler.passmanager import BasePassManager
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit.providers.fake_provider import GenericBackendV2

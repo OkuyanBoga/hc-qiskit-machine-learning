@@ -100,7 +100,8 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         elif isinstance(self._sampler, BaseSamplerV2):
             if self._pass_manager is None:
                 raise QiskitMachineLearningError(
-                    "To use ParameterShifSamplerGradient with SamplerV2 you must pass a gradient with a pass manager"
+                    "To use ParameterShifSamplerGradient with SamplerV2 you "
+                    + "must pass a gradient with a pass manager"
                 )
             isa_g_circs = self._pass_manager.run(job_circuits)
             circ_params = [
@@ -109,7 +110,8 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
             job = self._sampler.run(circ_params)
         else:
             raise AlgorithmError(
-                f"The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got {type(self._sampler)} instead."
+                "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; got "
+                + f"{type(self._sampler)} instead."
             )
 
         try:
@@ -120,8 +122,10 @@ class ParamShiftSamplerGradient(BaseSamplerGradient):
         # Compute the gradients.
         gradients = []
         partial_sum_n = 0
+        opt = None  # Required by PyLint: possibly-used-before-assignment
         for n in all_n:
             gradient = []
+
             if isinstance(self._sampler, BaseSamplerV1):
                 result = results.quasi_dists[partial_sum_n : partial_sum_n + n]
                 opt = self._get_local_options(options)
