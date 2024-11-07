@@ -169,7 +169,10 @@ class EstimatorQNN(NeuralNetwork):
             self.num_virtual_qubits = num_virtual_qubits
 
         if observables is None:
-            observables = SparsePauliOp.from_sparse_list([("Z"*self.num_virtual_qubits, range(self.num_virtual_qubits), 1)], num_qubits=self.circuit.num_qubits)
+            observables = SparsePauliOp.from_sparse_list(
+                [("Z" * self.num_virtual_qubits, range(self.num_virtual_qubits), 1)],
+                num_qubits=self.circuit.num_qubits,
+            )
 
         if isinstance(observables, BaseOperator):
             observables = (observables,)
@@ -187,9 +190,9 @@ class EstimatorQNN(NeuralNetwork):
             if isinstance(self.estimator, BaseEstimatorV2):
                 raise QiskitMachineLearningError(
                     "Please provide a gradient with pass manager initialised."
-                            )
-            else:
-                gradient = ParamShiftEstimatorGradient(self.estimator)
+                )
+
+            gradient = ParamShiftEstimatorGradient(self.estimator)
 
         self._default_precision = default_precision
         self.gradient = gradient
@@ -264,9 +267,7 @@ class EstimatorQNN(NeuralNetwork):
             # Prepare circuit-observable-parameter tuples (PUBs)
             circuit_observable_params = []
             for observable in self._observables:
-                circuit_observable_params.append(
-                        (self._circuit, observable, parameter_values_)
-                    )
+                circuit_observable_params.append((self._circuit, observable, parameter_values_))
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
             job = self.estimator.run(circuit_observable_params, precision=self._default_precision)
             results = [result.data.evs for result in job.result()]

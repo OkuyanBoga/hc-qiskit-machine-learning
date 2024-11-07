@@ -117,8 +117,8 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             gradients = []
             partial_sum_n = 0
             for n in all_n:
-                result = results.values[partial_sum_n: partial_sum_n + n]
-                gradient_ = (result[: n // 2] - result[n // 2:]) / 2
+                result = results.values[partial_sum_n : partial_sum_n + n]
+                gradient_ = (result[: n // 2] - result[n // 2 :]) / 2
                 gradients.append(gradient_)
                 partial_sum_n += n
 
@@ -140,8 +140,8 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
             gradients = []
             partial_sum_n = 0
             for n in all_n:
-                result = results[partial_sum_n: partial_sum_n + n]
-                gradient_ = (result[: n // 2] - result[n // 2:]) / 2
+                result = results[partial_sum_n : partial_sum_n + n]
+                gradient_ = (result[: n // 2] - result[n // 2 :]) / 2
                 gradients.append(gradient_)
                 partial_sum_n += n
 
@@ -154,5 +154,4 @@ class ParamShiftEstimatorGradient(BaseEstimatorGradient):
                 + "Qiskit and removed in Qiskit IBM Runtime."
             )
 
-        return EstimatorGradientResult(gradients=gradients, metadata=metadata,
-                                       options=opt)
+        return EstimatorGradientResult(gradients=gradients, metadata=metadata, options=opt)

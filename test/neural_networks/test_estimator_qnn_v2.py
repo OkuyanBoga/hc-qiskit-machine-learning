@@ -182,7 +182,7 @@ CASE_DATA = {
 class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
     """EstimatorQNN Tests for estimator_v2. The correct references is obtained from EstimatorQNN"""
 
-    tolerance: dict[str: float] = dict(atol=3*1.e-1, rtol=3*1.e-1)
+    tolerance: dict[str:float] = dict(atol=3 * 1.0e-1, rtol=3 * 1.0e-1)
     backend = GenericBackendV2(num_qubits=2, seed=123)
     session = Session(backend=backend)
 
@@ -192,7 +192,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
     ):
         self.estimator = EstimatorV2(mode=self.session, options={"default_shots": 1e3})
         self.pm = generate_preset_pass_manager(backend=self.backend, optimization_level=0)
-        self.gradient = ParamShiftEstimatorGradient(estimator = self.estimator, pass_manager = self.pm)
+        self.gradient = ParamShiftEstimatorGradient(estimator=self.estimator, pass_manager=self.pm)
         super().__init__(TestCase)
 
     def _test_network_passes(
@@ -256,7 +256,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=[params[0]],
             weight_params=[params[1]],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
@@ -285,7 +285,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=params[:2],
             weight_params=params[2:],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
@@ -312,7 +312,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=[params[0]],
             weight_params=[params[1]],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
@@ -344,7 +344,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=params[:2],
             weight_params=params[2:],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
@@ -366,7 +366,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=None,
             weight_params=params,
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_input_parameters"])
@@ -387,7 +387,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=params,
             weight_params=None,
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_weight_parameters"])
@@ -405,7 +405,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=None,
             weight_params=None,
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["no_parameters"])
@@ -423,7 +423,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=[params[0]],
             weight_params=[params[1]],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["default_observables"])
@@ -444,7 +444,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=[params[0]],
             weight_params=[params[1]],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=isa_qc.num_qubits,
         )
         self._test_network_passes(estimator_qnn, CASE_DATA["single_observable"])
@@ -465,7 +465,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=[params[0]],
             weight_params=[params[1]],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
         with self.subTest("Test circuit getter."):
@@ -498,19 +498,21 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             weight_params=ansatz.parameters,
             input_gradients=True,
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
         qnn_qc = QNNCircuit(num_qubits=num_qubits, feature_map=feature_map, ansatz=ansatz)
         isa_qnn_qc = self.pm.run(qnn_qc)
-        estimator_qnn_qc = EstimatorQNN(circuit=isa_qnn_qc,
+        estimator_qnn_qc = EstimatorQNN(
+            circuit=isa_qnn_qc,
             input_params=qnn_qc.feature_map.parameters,
             weight_params=qnn_qc.ansatz.parameters,
             input_gradients=True,
             estimator=self.estimator,
-            gradient = self.gradient,
-            num_virtual_qubits=qc.num_qubits)
+            gradient=self.gradient,
+            num_virtual_qubits=qc.num_qubits,
+        )
 
         input_data = [1, 2]
         weights = [1, 2, 3, 4]
@@ -524,7 +526,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             forward_qc = estimator_qc.forward(input_data=input_data, weights=weights)
             forward_qnn_qc = estimator_qnn_qc.forward(input_data=input_data, weights=weights)
             np.testing.assert_allclose(forward_qc, forward_qnn_qc, **self.tolerance)
-                
+
         with self.subTest("Test if backward pass yields equal results."):
             backward_qc = estimator_qc.backward(input_data=input_data, weights=weights)
             backward_qnn_qc = estimator_qnn_qc.backward(input_data=input_data, weights=weights)
@@ -551,7 +553,7 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
             input_params=input_params,
             weight_params=[weight],
             estimator=self.estimator,
-            gradient = self.gradient,
+            gradient=self.gradient,
             num_virtual_qubits=qc.num_qubits,
         )
 
