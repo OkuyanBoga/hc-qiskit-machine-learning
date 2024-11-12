@@ -1,6 +1,6 @@
 # This code is part of a Qiskit project.
 #
-# (C) Copyright IBM 2018, 2023.
+# (C) Copyright IBM 2018, 2024.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -29,9 +29,8 @@ from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap, ZFeatureMap
-from qiskit_algorithms.optimizers import COBYLA, L_BFGS_B
-from qiskit_algorithms.utils import algorithm_globals
-
+from qiskit_machine_learning.optimizers import COBYLA, L_BFGS_B
+from qiskit_machine_learning.utils import algorithm_globals
 from qiskit_machine_learning.algorithms import VQC
 from qiskit_machine_learning.exceptions import QiskitMachineLearningError
 
@@ -85,6 +84,7 @@ class TestVQC(QiskitMachineLearningTestCase):
             "no_one_hot": _create_dataset(6, 2, one_hot=False),
         }
 
+    # pylint: disable=too-many-positional-arguments
     @idata(itertools.product(NUM_QUBITS_LIST, FEATURE_MAPS, ANSATZES, OPTIMIZERS, DATASETS))
     @unpack
     def test_VQC(self, num_qubits, f_m, ans, opt, d_s):

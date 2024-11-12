@@ -15,16 +15,18 @@ ad hoc dataset
 """
 from __future__ import annotations
 
-import itertools as it
 from functools import reduce
+import itertools as it
 from typing import Tuple, Dict, List
-
 import numpy as np
-from qiskit.utils import optionals
-from qiskit_algorithms.utils import algorithm_globals
 from sklearn import preprocessing
 
+from qiskit.utils import optionals
 
+from ..utils import algorithm_globals
+
+
+# pylint: disable=too-many-positional-arguments
 def ad_hoc_data(
     training_size: int,
     test_size: int,
