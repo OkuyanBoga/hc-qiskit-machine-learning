@@ -147,7 +147,8 @@ class EstimatorQNN(NeuralNetwork):
                 Note that this parameter is ``False`` by default, and must be explicitly set to
                 ``True`` for a proper gradient computation when using
                 :class:`~qiskit_machine_learning.connectors.TorchConnector`.
-            num_virtual_qubits: Number of virtual qubits.
+            num_virtual_qubits: Number of virtual qubits. This is required for 
+            :class:`~qiskit.primitives.BaseSamplerV2` primitives when an observable isn't specified.
             default_precision: The default precision for the estimator if not specified during run.
 
         Raises:
@@ -166,19 +167,19 @@ class EstimatorQNN(NeuralNetwork):
         self.estimator = estimator
         self._org_circuit = circuit
 
-        if num_virtual_qubits is None:
-            self.num_virtual_qubits = circuit.num_qubits
-            warnings.warn(
-                f"No number of qubits was not specified ({num_virtual_qubits}) and was retrieved from "
-                + f"`circuit` ({self.num_virtual_qubits:d}). If `circuit` is transpiled, this may cause "
-                + "unstable behaviour.",
+        if observables is None:
+            if num_virtual_qubits is None:
+                self.num_virtual_qubits = circuit.num_qubits
+                warnings.warn(
+                f"Number of virual qubits was not specified ({num_virtual_qubits}) and was retrieved "
+                + f"from `circuit` ({circuit.num_qubits:d}). If `circuit` is transpiled, this may cause "
+                + "unstable behaviour when num_virtual_qubits less than physical_qubits",
                 UserWarning,
                 stacklevel=2,
             )
-        else:
-            self.num_virtual_qubits = num_virtual_qubits
+            else:
+                self.num_virtual_qubits = num_virtual_qubits
 
-        if observables is None:
             observables = SparsePauliOp.from_sparse_list(
                 [("Z" * self.num_virtual_qubits, range(self.num_virtual_qubits), 1)],
                 num_qubits=self.circuit.num_qubits,
