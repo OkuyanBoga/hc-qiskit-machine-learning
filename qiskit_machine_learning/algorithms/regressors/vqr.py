@@ -1,6 +1,6 @@
 # This code is part of a Qiskit project.
 #
-# (C) Copyright IBM 2021, 2023.
+# (C) Copyright IBM 2021, 2024.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -18,10 +18,11 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.primitives import BaseEstimator
 from qiskit.quantum_info.operators.base_operator import BaseOperator
-from qiskit_algorithms.optimizers import Optimizer, Minimizer
+from qiskit.transpiler.passmanager import BasePassManager
 
 from .neural_network_regressor import NeuralNetworkRegressor
 from ...neural_networks import EstimatorQNN
+from ...optimizers import Optimizer, Minimizer
 from ...utils import derive_num_qubits_feature_map_ansatz
 from ...utils.loss_functions import Loss
 
@@ -29,6 +30,7 @@ from ...utils.loss_functions import Loss
 class VQR(NeuralNetworkRegressor):
     """A convenient Variational Quantum Regressor implementation."""
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         num_qubits: int | None = None,
@@ -42,6 +44,7 @@ class VQR(NeuralNetworkRegressor):
         callback: Callable[[np.ndarray, float], None] | None = None,
         *,
         estimator: BaseEstimator | None = None,
+        pass_manager: BasePassManager | None = None,
     ) -> None:
         r"""
         Args:
@@ -61,9 +64,9 @@ class VQR(NeuralNetworkRegressor):
                 use the default :math:`Z^{\otimes num\_qubits}` observable.
             loss: A target loss function to be used in training. Default is squared error.
             optimizer: An instance of an optimizer or a callable to be used in training.
-                Refer to :class:`~qiskit_algorithms.optimizers.Minimizer` for more information on
+                Refer to :class:`~qiskit_machine_learning.optimizers.Minimizer` for more information on
                 the callable protocol. When `None` defaults to
-                :class:`~qiskit_algorithms.optimizers.SLSQP`.
+                :class:`~qiskit_machine_learning.optimizers.SLSQP`.
             warm_start: Use weights from previous fit to start next fit.
             initial_point: Initial point for the optimizer to start from.
             callback: A reference to a user's callback function that has two parameters and
@@ -74,6 +77,8 @@ class VQR(NeuralNetworkRegressor):
             estimator: an optional Estimator primitive instance to be used by the underlying
                 :class:`~qiskit_machine_learning.neural_networks.EstimatorQNN` neural network. If
                 ``None`` is passed then an instance of the reference Estimator will be used.
+            pass_manager: The pass manager to transpile the circuits, if necessary.
+                Defaults to ``None``, as some primitives do not need transpiled circuits.
         Raises:
             QiskitMachineLearningError: Needs at least one out of ``num_qubits``, ``feature_map`` or
                 ``ansatz`` to be given. Or the number of qubits in the feature map and/or ansatz
@@ -102,12 +107,20 @@ class VQR(NeuralNetworkRegressor):
 
         observables = [observable] if observable is not None else None
 
+        if pass_manager:
+            circuit.measure_all()
+            circuit = pass_manager.run(circuit)
+            observables = (
+                [observable.apply_layout(circuit.layout)] if observable is not None else None
+            )
+
         neural_network = EstimatorQNN(
             estimator=estimator,
             circuit=circuit,
             observables=observables,
             input_params=feature_map.parameters,
             weight_params=ansatz.parameters,
+            pass_manager=pass_manager,
         )
 
         super().__init__(

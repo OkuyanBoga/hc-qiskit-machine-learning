@@ -14,24 +14,30 @@
 
 from __future__ import annotations
 import logging
-
 from numbers import Integral
 from typing import Callable, cast, Iterable, Sequence
-
 import numpy as np
+
+from qiskit.primitives import BaseSamplerV1
+from qiskit.primitives.base import BaseSamplerV2
+
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.primitives import BaseSampler, SamplerResult, Sampler
-from qiskit_algorithms.gradients import (
+from qiskit.result import QuasiDistribution
+from qiskit.transpiler.passmanager import BasePassManager
+
+import qiskit_machine_learning.optionals as _optionals
+
+from ..gradients import (
     BaseSamplerGradient,
     ParamShiftSamplerGradient,
     SamplerGradientResult,
 )
-
-from qiskit_machine_learning.circuit.library import QNNCircuit
-from qiskit_machine_learning.exceptions import QiskitMachineLearningError
-import qiskit_machine_learning.optionals as _optionals
-
+from ..circuit.library import QNNCircuit
+from ..exceptions import QiskitMachineLearningError
+from ..utils.deprecation import issue_deprecation_msg
 from .neural_network import NeuralNetwork
+
 
 if _optionals.HAS_SPARSE:
     # pylint: disable=import-error
@@ -135,52 +141,75 @@ class SamplerQNN(NeuralNetwork):
         output_shape: int | tuple[int, ...] | None = None,
         gradient: BaseSamplerGradient | None = None,
         input_gradients: bool = False,
+        pass_manager: BasePassManager | None = None,
     ):
-        """
+        r"""
         Args:
-            sampler: The sampler primitive used to compute the neural network's results.
-                If ``None`` is given, a default instance of the reference sampler defined
-                by :class:`~qiskit.primitives.Sampler` will be used.
-            circuit: The parametrized quantum circuit that generates the samples of this network.
-                If a :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is passed, the
-                `input_params` and `weight_params` do not have to be provided, because these two
+            circuit: The parametrized quantum
+                circuit that generates the samples of this network. If a
+                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is passed,
+                the `input_params` and `weight_params` do not have to be provided, because these two
                 properties are taken from the
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit`.
+            sampler: The sampler primitive used to compute the neural network's results. If
+                ``None`` is given, a default instance of the reference sampler defined by
+                :class:`~qiskit.primitives.Sampler` will be used.
+
+                .. warning::
+
+                    The assignment ``sampler=None`` defaults to using
+                    :class:`~qiskit.primitives.Sampler`, which points to a deprecated Sampler V1
+                    (as of Qiskit 1.2). ``SamplerQNN`` will adopt Sampler V2 as default no later than
+                    Qiskit Machine Learning 0.9.
+
             input_params: The parameters of the circuit corresponding to the input. If a
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is provided the
-                `input_params` value here is ignored. Instead the value is taken from the
+                `input_params` value here is ignored. Instead, the value is taken from the
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` input_parameters.
-            weight_params: The parameters of the circuit corresponding to the trainable weights. If
-                a :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is provided the
-                `weight_params` value here is ignored. Instead the value is taken from the
-                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` weight_parameters.
+            weight_params: The parameters of the circuit corresponding to the trainable weights. If a
+                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is provided the
+                `weight_params` value here is ignored. Instead, the value is taken from the
+                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` ``weight_parameters``.
             sparse: Returns whether the output is sparse or not.
-            interpret: A callable that maps the measured integer to another unsigned integer or
-                tuple of unsigned integers. These are used as new indices for the (potentially
-                sparse) output array. If no interpret function is
-                passed, then an identity function will be used by this neural network.
-            output_shape: The output shape of the custom interpretation. It is ignored if no custom
-                interpret method is provided where the shape is taken to be
+            interpret: A callable that maps the measured integer to another unsigned integer or tuple
+                of unsigned integers. These are used as new indices for the (potentially sparse)
+                output array. If no interpret function is passed, then an identity function will be
+                used by this neural network.
+            output_shape: The output shape of the custom interpretation. For SamplerV1, it is ignored
+                if no custom interpret method is provided where the shape is taken to be
                 ``2^circuit.num_qubits``.
-            gradient: An optional sampler gradient to be used for the backward pass.
-                If ``None`` is given, a default instance of
-                :class:`~qiskit_algorithms.gradients.ParamShiftSamplerGradient` will be used.
-            input_gradients: Determines whether to compute gradients with respect to input data.
-                 Note that this parameter is ``False`` by default, and must be explicitly set to
-                 ``True`` for a proper gradient computation when using
-                 :class:`~qiskit_machine_learning.connectors.TorchConnector`.
+            gradient: An optional sampler gradient to be used for the backward pass. If ``None`` is
+                given, a default instance of
+                :class:`~qiskit_machine_learning.gradients.ParamShiftSamplerGradient` will be used.
+            input_gradients: Determines whether to compute gradients with respect to input data. Note
+                that this parameter is ``False`` by default, and must be explicitly set to ``True``
+                for a proper gradient computation when using
+                :class:`~qiskit_machine_learning.connectors.TorchConnector`.
+            pass_manager: The pass manager to transpile the circuits, if necessary.
+                Defaults to ``None``, as some primitives do not need transpiled circuits.
         Raises:
             QiskitMachineLearningError: Invalid parameter values.
         """
         # set primitive, provide default
         if sampler is None:
             sampler = Sampler()
-        self.sampler = sampler
 
-        # set gradient
-        if gradient is None:
-            gradient = ParamShiftSamplerGradient(self.sampler)
-        self.gradient = gradient
+        if isinstance(sampler, BaseSamplerV1):
+            issue_deprecation_msg(
+                msg="V1 Primitives are deprecated",
+                version="0.8.0",
+                remedy="Use V2 primitives for continued compatibility and support.",
+                period="4 months",
+            )
+        self.sampler = sampler
+        if hasattr(circuit.layout, "_input_qubit_count"):
+            self.num_virtual_qubits = circuit.layout._input_qubit_count
+        else:
+            if pass_manager is None:
+                self.num_virtual_qubits = circuit.num_qubits
+            else:
+                circuit = pass_manager.run(circuit)
+                self.num_virtual_qubits = circuit.layout._input_qubit_count
 
         self._org_circuit = circuit
 
@@ -195,6 +224,21 @@ class SamplerQNN(NeuralNetwork):
             _optionals.HAS_SPARSE.require_now("DOK")
 
         self.set_interpret(interpret, output_shape)
+        # set gradient
+        if gradient is None:
+            if isinstance(sampler, BaseSamplerV1):
+                gradient = ParamShiftSamplerGradient(sampler=self.sampler)
+            else:
+                if pass_manager is None:
+                    logger.warning(
+                        "No gradient function provided, creating a gradient function."
+                        " If your Sampler requires transpilation, please provide a pass manager."
+                    )
+                gradient = ParamShiftSamplerGradient(
+                    sampler=self.sampler, pass_manager=pass_manager
+                )
+        self.gradient = gradient
+
         self._input_gradients = input_gradients
 
         super().__init__(
@@ -255,7 +299,11 @@ class SamplerQNN(NeuralNetwork):
         interpret: Callable[[int], int | tuple[int, ...]] | None = None,
         output_shape: int | tuple[int, ...] | None = None,
     ) -> tuple[int, ...]:
-        """Validate and compute the output shape."""
+        """Validate and compute the output shape.
+        Raises:
+            QiskitMachineLearningError: If no output shape is given.
+            QiskitMachineLearningError: If an invalid ``sampler``provided.
+        """
 
         # this definition is required by mypy
         output_shape_: tuple[int, ...] = (-1,)
@@ -275,10 +323,9 @@ class SamplerQNN(NeuralNetwork):
                 # Warn user that output_shape parameter will be ignored
                 logger.warning(
                     "No interpret function given, output_shape will be automatically "
-                    "determined as 2^num_qubits."
+                    "determined as 2^num_virtual_qubits."
                 )
-            output_shape_ = (2**self.circuit.num_qubits,)
-
+            output_shape_ = (2**self.num_virtual_qubits,)
         return output_shape_
 
     def _postprocess(self, num_samples: int, result: SamplerResult) -> np.ndarray | SparseArray:
@@ -295,8 +342,27 @@ class SamplerQNN(NeuralNetwork):
             prob = np.zeros((num_samples, *self._output_shape))
 
         for i in range(num_samples):
-            counts = result.quasi_dists[i]
+            if isinstance(self.sampler, BaseSamplerV1):
+                counts = result.quasi_dists[i]
 
+            elif isinstance(self.sampler, BaseSamplerV2):
+                if hasattr(result[i].data, "meas"):
+                    bitstring_counts = result[i].data.meas.get_counts()
+                else:
+                    # Fallback to 'c' if 'meas' is not available.
+                    bitstring_counts = result[i].data.c.get_counts()
+                # Normalize the counts to probabilities
+                total_shots = sum(bitstring_counts.values())
+                probabilities = {k: v / total_shots for k, v in bitstring_counts.items()}
+
+                # Convert to quasi-probabilities
+                counts = QuasiDistribution(probabilities)
+                counts = {k: v for k, v in counts.items() if int(k) < 2**self.num_virtual_qubits}
+            else:
+                raise QiskitMachineLearningError(
+                    "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; "
+                    + f"got {type(self.sampler)} instead."
+                )
             # evaluate probabilities
             for b, v in counts.items():
                 key = self._interpret(b)
@@ -328,7 +394,6 @@ class SamplerQNN(NeuralNetwork):
             )
             weights_grad = DOK((num_samples, *self._output_shape, self._num_weights))
         else:
-
             input_grad = (
                 np.zeros((num_samples, *self._output_shape, self._num_inputs))
                 if self._input_gradients
@@ -387,14 +452,22 @@ class SamplerQNN(NeuralNetwork):
         """
         parameter_values, num_samples = self._preprocess_forward(input_data, weights)
 
-        # sampler allows batching
-        job = self.sampler.run([self._circuit] * num_samples, parameter_values)
+        if isinstance(self.sampler, BaseSamplerV1):
+            job = self.sampler.run([self._circuit] * num_samples, parameter_values)
+        elif isinstance(self.sampler, BaseSamplerV2):
+            job = self.sampler.run(
+                [(self._circuit, parameter_values[i]) for i in range(num_samples)]
+            )
+        else:
+            raise QiskitMachineLearningError(
+                "The accepted estimators are BaseSamplerV1 (deprecated) and BaseSamplerV2; "
+                + f"got {type(self.sampler)} instead."
+            )
         try:
             results = job.result()
         except Exception as exc:
-            raise QiskitMachineLearningError("Sampler job failed.") from exc
+            raise QiskitMachineLearningError(f"Sampler job failed: {exc}") from exc
         result = self._postprocess(num_samples, results)
-
         return result
 
     def _backward(
@@ -410,19 +483,20 @@ class SamplerQNN(NeuralNetwork):
 
         if np.prod(parameter_values.shape) > 0:
             circuits = [self._circuit] * num_samples
-
             job = None
             if self._input_gradients:
-                job = self.gradient.run(circuits, parameter_values)
+                job = self.gradient.run(circuits, parameter_values)  # type: ignore[arg-type]
             elif len(parameter_values[0]) > self._num_inputs:
                 params = [self._circuit.parameters[self._num_inputs :]] * num_samples
-                job = self.gradient.run(circuits, parameter_values, parameters=params)
+                job = self.gradient.run(
+                    circuits, parameter_values, parameters=params  # type: ignore[arg-type]
+                )
 
             if job is not None:
                 try:
                     results = job.result()
                 except Exception as exc:
-                    raise QiskitMachineLearningError("Sampler job failed.") from exc
+                    raise QiskitMachineLearningError(f"Sampler job failed: {exc}") from exc
 
                 input_grad, weights_grad = self._postprocess_gradient(num_samples, results)
 

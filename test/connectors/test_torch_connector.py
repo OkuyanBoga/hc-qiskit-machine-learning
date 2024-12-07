@@ -24,6 +24,7 @@ from qiskit.quantum_info import SparsePauliOp
 
 from qiskit_machine_learning import QiskitMachineLearningError
 from qiskit_machine_learning.connectors import TorchConnector
+from qiskit_machine_learning.connectors.torch_connector import _TorchNNFunction
 from qiskit_machine_learning.neural_networks import SamplerQNN, EstimatorQNN
 from qiskit_machine_learning.connectors.torch_connector import _get_einsum_signature
 
@@ -54,7 +55,7 @@ class TestTorchConnector(TestTorch):
         import torch
 
         # test autograd
-        func = TorchConnector._TorchNNFunction.apply  # (input, weights, qnn)
+        func = _TorchNNFunction.apply  # (input, weights, qnn)
         input_data = (
             torch.randn(
                 model.neural_network.num_inputs,
@@ -262,6 +263,7 @@ class TestTorchConnector(TestTorch):
                 stride (int, optional): Stride of the convolution. Defaults to 1.
             """
 
+            # pylint: disable=too-many-positional-arguments
             def __init__(
                 self,
                 input_channel: int,
@@ -271,7 +273,6 @@ class TestTorchConnector(TestTorch):
                 kernel_size: int = 3,
                 stride: int = 1,
             ):
-
                 super().__init__()
                 self.kernel_size = kernel_size
                 self.stride = stride
