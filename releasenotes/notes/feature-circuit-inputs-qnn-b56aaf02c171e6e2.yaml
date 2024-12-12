@@ -1,0 +1,10 @@
+
+features:
+  - |
+    Added support to run circuits instead of input data in `forward` and `backward` calls for :class:`~qiskit_machine_learning.neural_networks.neural_network` based neural networks.
+    Ansatz should be passed as `circuit`, and `input_params` should be `None`. 
+    For `.forward` and `.backward` calls, both circuits and `input_params` and circuits binded with `input_params` are supported.
+    Example usage:
+    ```
+    
+    ```

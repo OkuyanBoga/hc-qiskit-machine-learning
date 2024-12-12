@@ -124,7 +124,8 @@ class EstimatorQNN(NeuralNetwork):
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is passed, the
                 ``input_params`` and ``weight_params`` do not have to be provided, because these two
                 properties are taken from the
-                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit`.
+                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit`. If you would like to use
+                circuits as inputs, please only provide ansatz as circuit and `input_params` as `None`.
             estimator: The estimator used to compute neural network's results.
                 If ``None``, a default instance of the reference estimator,
                 :class:`~qiskit.primitives.Estimator`, will be used.
@@ -163,6 +164,7 @@ class EstimatorQNN(NeuralNetwork):
         Raises:
             QiskitMachineLearningError: Invalid parameter values.
         """
+
         if estimator is None:
             estimator = Estimator()
 
@@ -227,6 +229,7 @@ class EstimatorQNN(NeuralNetwork):
             sparse=False,
             output_shape=len(self._observables),
             input_gradients=input_gradients,
+            pass_manager=pass_manager,
         )
 
         self._circuit = self._reparameterize_circuit(circuit, input_params, weight_params)
@@ -272,29 +275,39 @@ class EstimatorQNN(NeuralNetwork):
         return np.reshape(result, (-1, num_samples)).T
 
     def _forward(
-        self, input_data: np.ndarray | None, weights: np.ndarray | None
+        self,
+        input_data: QuantumCircuit | list[QuantumCircuit] | np.ndarray | None,
+        weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> np.ndarray | None:
         """Forward pass of the neural network."""
-        parameter_values_, num_samples = self._preprocess_forward(input_data, weights)
-
+        _circuits, parameter_values_, num_samples, _ = self._preprocess_input(
+            input_data, weights, input_params, self._circuit, self.output_shape[0]
+        )
         # Determine how to run the estimator based on its version
         if isinstance(self.estimator, BaseEstimatorV1):
             job = self.estimator.run(
-                [self._circuit] * num_samples * self.output_shape[0],
+                _circuits,
                 [op for op in self._observables for _ in range(num_samples)],
                 np.tile(parameter_values_, (self.output_shape[0], 1)),
             )
             results = job.result().values
 
         elif isinstance(self.estimator, BaseEstimatorV2):
-
             # Prepare circuit-observable-parameter tuples (PUBs)
-            circuit_observable_params = []
-            for observable in self._observables:
-                circuit_observable_params.append((self._circuit, observable, parameter_values_))
-
+            pubs = []
+            if self._input_params is None:
+                for observable in self._observables:
+                    for idx in range(len(_circuits)):
+                        if input_params is None:
+                            pubs.append((_circuits[idx], observable, parameter_values_))
+                        else:
+                            pubs.append((_circuits[idx], observable, parameter_values_[idx]))
+            else:
+                for observable in self._observables:
+                    pubs.append((_circuits[0], observable, parameter_values_))
             # For BaseEstimatorV2, run the estimator using PUBs and specified precision
-            job = self.estimator.run(circuit_observable_params, precision=self._default_precision)
+            job = self.estimator.run(pubs, precision=self._default_precision)
             results = [result.data.evs for result in job.result()]
         else:
             raise QiskitMachineLearningError(
@@ -329,31 +342,37 @@ class EstimatorQNN(NeuralNetwork):
         return input_grad, weights_grad
 
     def _backward(
-        self, input_data: np.ndarray | None, weights: np.ndarray | None
+        self,
+        input_data: QuantumCircuit | list[QuantumCircuit] | np.ndarray | None,
+        weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> tuple[np.ndarray | None, np.ndarray]:
         """Backward pass of the network."""
         # prepare parameters in the required format
-        parameter_values, num_samples = self._preprocess_forward(input_data, weights)
-
+        num_observables = self.output_shape[0]
+        _circuits, parameter_values, num_samples, is_circ_input = self._preprocess_input(
+            input_data, weights, input_params, self._circuit, num_observables
+        )
         input_grad, weights_grad = None, None
-
         if np.prod(parameter_values.shape) > 0:
-            num_observables = self.output_shape[0]
-            num_circuits = num_samples * num_observables
 
-            circuits = [self._circuit] * num_circuits
             observables = [op for op in self._observables for _ in range(num_samples)]
             param_values = np.tile(parameter_values, (num_observables, 1))
 
             job = None
 
             if self._input_gradients:
-
-                job = self.gradient.run(circuits, observables, param_values)
+                job = self.gradient.run(_circuits, observables, param_values)
 
             elif len(parameter_values[0]) > self._num_inputs:
-                params = [self._circuit.parameters[self._num_inputs :]] * num_circuits
-                job = self.gradient.run(circuits, observables, param_values, parameters=params)
+                if is_circ_input and input_params is not None:
+                    params = [
+                        _circuit.parameters[len(in_param) :]
+                        for _circuit, in_param in zip(_circuits, input_params)
+                    ]
+                else:
+                    params = [_circuit.parameters[self._num_inputs :] for _circuit in _circuits]
+                job = self.gradient.run(_circuits, observables, param_values, parameters=params)
 
             if job is not None:
                 try:

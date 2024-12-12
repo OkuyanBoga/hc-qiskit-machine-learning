@@ -21,6 +21,8 @@ from typing import Sequence
 import numpy as np
 
 from qiskit.circuit import Parameter, ParameterVector, QuantumCircuit
+from qiskit.transpiler.passmanager import BasePassManager
+
 import qiskit_machine_learning.optionals as _optionals
 from ..exceptions import QiskitMachineLearningError
 
@@ -50,6 +52,7 @@ class NeuralNetwork(ABC):
         sparse: bool,
         output_shape: int | tuple[int, ...],
         input_gradients: bool = False,
+        pass_manager: BasePassManager | None = None,
     ) -> None:
         """
         Args:
@@ -58,13 +61,14 @@ class NeuralNetwork(ABC):
             sparse: Determines whether the output is a sparse array or not.
             output_shape: The shape of the output.
             input_gradients: Determines whether to compute gradients with respect to input data.
+            pass_manager: The pass manager to transpile the circuits, if necessary.
+                Defaults to ``None``, as some primitives do not need transpiled circuits.
         Raises:
             QiskitMachineLearningError: Invalid parameter values.
         """
         if num_inputs < 0:
             raise QiskitMachineLearningError(f"Number of inputs cannot be negative: {num_inputs}!")
         self._num_inputs = num_inputs
-
         if num_weights < 0:
             raise QiskitMachineLearningError(
                 f"Number of weights cannot be negative: {num_weights}!"
@@ -72,6 +76,7 @@ class NeuralNetwork(ABC):
         self._num_weights = num_weights
 
         self._sparse = sparse
+        self.pass_manager = pass_manager
 
         # output shape may be derived later, so check it only if it is not None
         if output_shape is not None:
@@ -120,16 +125,38 @@ class NeuralNetwork(ABC):
         return output_shape
 
     def _validate_input(
-        self, input_data: float | list[float] | np.ndarray | None
-    ) -> tuple[np.ndarray | None, tuple[int, ...] | None]:
+        self,
+        input_data: float | QuantumCircuit | list[QuantumCircuit] | list[float] | np.ndarray | None,
+        input_params: float | list[float] | np.ndarray | None = None,
+    ) -> tuple[
+        np.ndarray | QuantumCircuit | list[QuantumCircuit] | None,
+        tuple[int, ...] | None,
+        np.ndarray | None,
+    ]:
         if input_data is None:
-            return None, None
-        input_ = np.array(input_data)
+            return None, None, None
+        elif isinstance(input_data, QuantumCircuit):
+            if input_params is None:
+                return input_data, (len(input_data),), input_params
+            else:
+                input_ = np.array(input_params)
+                input_ = input_.reshape((1, 1))
+                return [input_data], input_.shape, input_
+        if type(input_data) is list:
+            if isinstance(input_data[0], QuantumCircuit):
+                if input_params is None:
+                    return input_data, (len(input_data),), input_params
+                else:
+                    input_ = np.array(input_params)
+            else:
+                input_ = np.array(input_data)
+        else:
+            input_ = np.array(input_data)
         shape = input_.shape
         if len(shape) == 0:
             # there's a single value in the input.
             input_ = input_.reshape((1, 1))
-            return input_, shape
+            return input_, shape, input_params
 
         if shape[-1] != self._num_inputs:
             raise QiskitMachineLearningError(
@@ -145,7 +172,82 @@ class NeuralNetwork(ABC):
             # flatten lower dimensions, keep num_inputs as a last dimension
             input_ = input_.reshape((np.prod(input_.shape[:-1]), -1))
 
-        return input_, shape
+        if isinstance(input_data[0], QuantumCircuit):
+            return input_data, shape, input_
+
+        return input_, shape, input_params
+
+    def _compose_circs(
+        self, input_circuit: QuantumCircuit, ansatz: QuantumCircuit
+    ) -> QuantumCircuit:
+        """Compose input circuits with given ansatz."""
+        if hasattr(input_circuit.layout, "_input_qubit_count"):
+            if hasattr(ansatz.layout, "_input_qubit_count"):
+                if ansatz.num_qubits != input_circuit.num_qubits:
+                    raise QiskitMachineLearningError(
+                        "Transpiled circuits need to have same number of qubits."
+                    )
+                circuit_ = input_circuit.compose(ansatz)
+            else:
+                if self.pass_manager is not None:
+                    _isa_ansatz = self.pass_manager.run(ansatz)
+                    circuit_ = input_circuit.compose(_isa_ansatz)
+                else:
+                    raise QiskitMachineLearningError(
+                        "Both input circuits needs to be same type or "
+                        "please provide a pass manager."
+                    )
+        else:
+            if hasattr(ansatz.layout, "_input_qubit_count"):
+                if self.pass_manager is not None:
+                    _isa_fm = self.pass_manager.run(input_circuit)
+                    if ansatz.num_qubits != _isa_fm.num_qubits:
+                        raise QiskitMachineLearningError(
+                            "Transpiled circuits need to have same number of qubits."
+                            "Please ensure if you are using the same pass manager."
+                        )
+                    circuit_ = _isa_fm.compose(ansatz)
+                else:
+                    raise QiskitMachineLearningError(
+                        "Both input circuits needs to be same type or "
+                        "please provide a pass manager."
+                    )
+            else:
+                circuit_ = QuantumCircuit(ansatz.num_qubits)
+                circuit_.compose(input_circuit, inplace=True)
+                circuit_.compose(ansatz, inplace=True)
+        return circuit_
+
+    def _preprocess_input(
+        self,
+        input_data: np.ndarray | list[QuantumCircuit] | QuantumCircuit | None,
+        weights: np.ndarray | None,
+        input_params: np.ndarray | None,
+        ansatz: QuantumCircuit | None,
+        output_shape: int = 1,
+    ) -> tuple[list[QuantumCircuit] | None, np.ndarray | None, int | None, bool]:
+        """
+        Pre-processing input data of the network for the primitive-based networks.
+        """
+        is_circ_input = False
+        if input_data is None:
+            parameter_values, num_samples = self._preprocess_forward(input_data, weights)
+            _circuits = [ansatz] * output_shape * num_samples
+        else:
+            if isinstance(input_data, QuantumCircuit):
+                num_samples = 1
+                _circuits = [self._compose_circs(input_data, ansatz)] * output_shape
+                parameter_values, _ = self._preprocess_forward(input_params, weights)
+                is_circ_input = True
+            elif isinstance(input_data[0], QuantumCircuit):
+                num_samples = len(input_data)
+                _circuits = [self._compose_circs(x, ansatz) for x in input_data] * output_shape
+                parameter_values, _ = self._preprocess_forward(input_params, weights)
+                is_circ_input = True
+            else:
+                parameter_values, num_samples = self._preprocess_forward(input_data, weights)
+                _circuits = [ansatz] * output_shape * num_samples
+        return _circuits, parameter_values, num_samples, is_circ_input
 
     def _preprocess_forward(
         self,
@@ -211,50 +313,62 @@ class NeuralNetwork(ABC):
 
     def forward(
         self,
-        input_data: float | list[float] | np.ndarray | None,
+        input_data: float | list[float] | np.ndarray | QuantumCircuit | list[QuantumCircuit] | None,
         weights: float | list[float] | np.ndarray | None,
+        input_params: float | list[float] | np.ndarray | None = None,
     ) -> np.ndarray | SparseArray:
         """Forward pass of the network.
 
         Args:
             input_data: input data of the shape (num_inputs). In case of a single scalar input it is
-                directly cast to and interpreted like a one-element array.
+                directly cast to and interpreted like a one-element array. If the data is set of circuits
+                either bind the input parameters to circuits or use input_params.
             weights: trainable weights of the shape (num_weights). In case of a single scalar weight
                 it is directly cast to and interpreted like a one-element array.
+            input_params: Input parameters for each circuit given as data. Only use when input is circuit.
+                Defaults to `None`.
         Returns:
             The result of the neural network of the shape (output_shape).
         """
-        input_, shape = self._validate_input(input_data)
+        input_, shape, input_params_ = self._validate_input(input_data, input_params)
         weights_ = self._validate_weights(weights)
-        output_data = self._forward(input_, weights_)
+        output_data = self._forward(input_, weights_, input_params_)
         return self._validate_forward_output(output_data, shape)
 
     @abstractmethod
     def _forward(
-        self, input_data: np.ndarray | None, weights: np.ndarray | None
+        self,
+        input_data: np.ndarray | QuantumCircuit | list[QuantumCircuit] | None,
+        weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> np.ndarray | SparseArray:
         raise NotImplementedError
 
     def backward(
         self,
-        input_data: float | list[float] | np.ndarray | None,
+        input_data: float | list[float] | np.ndarray | QuantumCircuit | list[QuantumCircuit] | None,
         weights: float | list[float] | np.ndarray | None,
+        input_params: float | list[float] | np.ndarray | None = None,
     ) -> tuple[np.ndarray | SparseArray | None, np.ndarray | SparseArray | None]:
         """Backward pass of the network.
 
         Args:
             input_data: input data of the shape (num_inputs). In case of a
                 single scalar input it is directly cast to and interpreted like a one-element array.
+                If the data is set of circuits either bind the input parameters to circuits
+                or use input_params.
             weights: trainable weights of the shape (num_weights). In case of a single scalar weight
             it is directly cast to and interpreted like a one-element array.
+            input_params: Input parameters for each circuit given as data. Only use when input is circuit.
+                Defaults to `None`.
         Returns:
             The result of the neural network of the backward pass, i.e., a tuple with the gradients
             for input and weights of shape (output_shape, num_input) and
             (output_shape, num_weights), respectively.
         """
-        input_, shape = self._validate_input(input_data)
+        input_, shape, input_params_ = self._validate_input(input_data, input_params)
         weights_ = self._validate_weights(weights)
-        input_grad, weight_grad = self._backward(input_, weights_)
+        input_grad, weight_grad = self._backward(input_, weights_, input_params_)
 
         input_grad_reshaped, weight_grad_reshaped = self._validate_backward_output(
             input_grad, weight_grad, shape
@@ -264,7 +378,10 @@ class NeuralNetwork(ABC):
 
     @abstractmethod
     def _backward(
-        self, input_data: np.ndarray | None, weights: np.ndarray | None
+        self,
+        input_data: np.ndarray | QuantumCircuit | list[QuantumCircuit] | None,
+        weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> tuple[np.ndarray | SparseArray | None, np.ndarray | SparseArray | None]:
         raise NotImplementedError
 

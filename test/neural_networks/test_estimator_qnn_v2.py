@@ -201,8 +201,11 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         self,
         estimator_qnn,
         case_data,
+        input_params=None,
+        test_data=None,
     ):
-        test_data = case_data["test_data"]
+        if test_data is None:
+            test_data = case_data["test_data"]
         weights = case_data["weights"]
         correct_forwards = case_data["correct_forwards"]
         correct_weight_backwards = case_data["correct_weight_backwards"]
@@ -211,12 +214,14 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         # test forward pass
         with self.subTest("forward pass"):
             for i, inputs in enumerate(test_data):
-                forward = estimator_qnn.forward(inputs, weights)
+                forward = estimator_qnn.forward(inputs, weights, input_params)
                 np.testing.assert_allclose(forward, correct_forwards[i], **self.tolerance)
         # test backward pass without input_gradients
         with self.subTest("backward pass without input gradients"):
             for i, inputs in enumerate(test_data):
-                input_backward, weight_backward = estimator_qnn.backward(inputs, weights)
+                input_backward, weight_backward = estimator_qnn.backward(
+                    inputs, weights, input_params
+                )
                 if correct_weight_backwards[i] is None:
                     self.assertIsNone(weight_backward)
                 else:
@@ -228,7 +233,9 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         with self.subTest("backward pass with input gradients"):
             estimator_qnn.input_gradients = True
             for i, inputs in enumerate(test_data):
-                input_backward, weight_backward = estimator_qnn.backward(inputs, weights)
+                input_backward, weight_backward = estimator_qnn.backward(
+                    inputs, weights, input_params
+                )
                 if correct_weight_backwards[i] is None:
                     self.assertIsNone(weight_backward)
                 else:
@@ -552,6 +559,132 @@ class TestEstimatorQNNV2(QiskitMachineLearningTestCase):
         # When parameters were used in circuit order, before being assigned correctly, so inputs
         # went to input params, weights to weight params, this gave 0.00613403
         self.assertAlmostEqual(res[0][0], 0.00040017, delta=0.1)
+
+    def _test_network_passes_for_circ_input(
+        self,
+        estimator_qnn,
+        case_data,
+        input_params=None,
+        test_data=None,
+    ):
+        if test_data is None:
+            test_data = case_data["test_data"]
+        weights = case_data["weights"]
+        correct_forwards = case_data["correct_forwards"]
+        correct_weight_backwards = case_data["correct_weight_backwards"]
+        correct_input_backwards = case_data["correct_input_backwards"]
+
+        # test forward pass
+        with self.subTest("forward pass"):
+            for i, inputs in enumerate(test_data):
+                forward = estimator_qnn.forward(inputs, weights, input_params)
+                np.testing.assert_allclose(forward, correct_forwards[i], **self.tolerance)
+        # test backward pass without input_gradients
+        with self.subTest("backward pass without input gradients"):
+            for i, inputs in enumerate(test_data):
+                input_backward, weight_backward = estimator_qnn.backward(
+                    inputs, weights, input_params
+                )
+                if correct_weight_backwards[i] is None:
+                    self.assertIsNone(weight_backward)
+                else:
+                    np.testing.assert_allclose(
+                        weight_backward, correct_weight_backwards[i], **self.tolerance
+                    )
+                self.assertIsNone(input_backward)
+
+    def test_estimator_circ_input_qnn(self):
+        """Test Estimator QNN with input circuits/output dimension 1/1."""
+        params = [Parameter("input1"), Parameter("weight1")]
+        op = SparsePauliOp.from_list([("Z", 1), ("X", 1)])
+        ansatz = QuantumCircuit(1)
+        ansatz.rx(params[1], 0)
+
+        fm = QuantumCircuit(1)
+        fm.h(0)
+        fm.ry(params[0], 0)
+        isa_ansatz = self.pass_manager.run(ansatz)
+        isa_ob = op.apply_layout(isa_ansatz.layout)
+        isa_estimator_qnn = EstimatorQNN(
+            circuit=isa_ansatz,
+            observables=[isa_ob],
+            input_params=None,
+            weight_params=[params[1]],
+            estimator=self.estimator,
+            gradient=self.gradient,
+            pass_manager=self.pass_manager,
+        )
+        estimator_qnn = EstimatorQNN(
+            circuit=ansatz,
+            observables=[isa_ob],
+            input_params=None,
+            weight_params=[params[1]],
+            estimator=self.estimator,
+            gradient=self.gradient,
+            pass_manager=self.pass_manager,
+        )
+        test_data = []
+        test_data_assigned = []
+        input_params = []
+        pm_test_data_assigned = []
+        pm_test_data = []
+        for inputs in CASE_DATA["shape_1_1"]["test_data"][:1]:
+            isa_fm = self.pass_manager.run(fm)
+            test_data.append(isa_fm)
+            pm_test_data.append(fm)
+            if type(inputs) == list:
+                fm_assigned = fm.assign_parameters(
+                    {params[idx]: inputs[idx] for idx in range(len(inputs))}
+                )
+                isa_fm_assigned = self.pass_manager.run(fm_assigned)
+                test_data_assigned.append(fm_assigned)
+                pm_test_data_assigned.append(isa_fm_assigned)
+            else:
+                fm_assigned = fm.assign_parameters({params[0]: inputs})
+                isa_fm_assigned = self.pass_manager.run(fm_assigned)
+                test_data_assigned.append(fm_assigned)
+                pm_test_data_assigned.append(isa_fm_assigned)
+            input_params.append(inputs)
+        self._test_network_passes_for_circ_input(
+            isa_estimator_qnn,
+            CASE_DATA["shape_1_1"],
+            input_params=input_params,
+            test_data=test_data,
+        )
+        self._test_network_passes_for_circ_input(
+            isa_estimator_qnn,
+            CASE_DATA["shape_1_1"],
+            input_params=None,
+            test_data=test_data_assigned,
+        )
+        self._test_network_passes_for_circ_input(
+            isa_estimator_qnn,
+            CASE_DATA["shape_1_1"],
+            input_params=input_params,
+            test_data=pm_test_data,
+        )
+        self._test_network_passes_for_circ_input(
+            isa_estimator_qnn,
+            CASE_DATA["shape_1_1"],
+            input_params=None,
+            test_data=pm_test_data_assigned,
+        )
+
+        self._test_network_passes_for_circ_input(
+            estimator_qnn, CASE_DATA["shape_1_1"], input_params=input_params, test_data=test_data
+        )
+        self._test_network_passes_for_circ_input(
+            estimator_qnn, CASE_DATA["shape_1_1"], input_params=None, test_data=test_data_assigned
+        )
+        self._test_network_passes_for_circ_input(
+            estimator_qnn, CASE_DATA["shape_1_1"], input_params=input_params, test_data=pm_test_data
+        )
+        self._test_network_passes_for_circ_input(
+            estimator_qnn,
+            CASE_DATA["shape_1_1"],
+            input_params=None,
+            test_data=pm_test_data_assigned,
+        )
 
 
 if __name__ == "__main__":

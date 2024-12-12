@@ -150,7 +150,8 @@ class SamplerQNN(NeuralNetwork):
                 :class:`~qiskit_machine_learning.circuit.library.QNNCircuit` is passed,
                 the `input_params` and `weight_params` do not have to be provided, because these two
                 properties are taken from the
-                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit`.
+                :class:`~qiskit_machine_learning.circuit.library.QNNCircuit`. If you would like to use
+                circuits as inputs, please only provide ansatz as circuit and `input_params` as `None`.
             sampler: The sampler primitive used to compute the neural network's results. If
                 ``None`` is given, a default instance of the reference sampler defined by
                 :class:`~qiskit.primitives.Sampler` will be used.
@@ -240,13 +241,13 @@ class SamplerQNN(NeuralNetwork):
         self.gradient = gradient
 
         self._input_gradients = input_gradients
-
         super().__init__(
             num_inputs=len(self._input_params),
             num_weights=len(self._weight_params),
             sparse=sparse,
             output_shape=self._output_shape,
             input_gradients=self._input_gradients,
+            pass_manager=pass_manager,
         )
 
         if len(circuit.clbits) == 0:
@@ -444,19 +445,22 @@ class SamplerQNN(NeuralNetwork):
 
     def _forward(
         self,
-        input_data: np.ndarray | None,
+        input_data: QuantumCircuit | list[QuantumCircuit] | np.ndarray | None,
         weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> np.ndarray | SparseArray | None:
         """
         Forward pass of the network.
         """
-        parameter_values, num_samples = self._preprocess_forward(input_data, weights)
+        _circuits, parameter_values, num_samples, _ = self._preprocess_input(
+            input_data, weights, input_params, self._circuit
+        )
 
         if isinstance(self.sampler, BaseSamplerV1):
-            job = self.sampler.run([self._circuit] * num_samples, parameter_values)
+            job = self.sampler.run(_circuits, parameter_values)
         elif isinstance(self.sampler, BaseSamplerV2):
             job = self.sampler.run(
-                [(self._circuit, parameter_values[i]) for i in range(num_samples)]
+                [(_circuits[i], parameter_values[i]) for i in range(num_samples)]
             )
         else:
             raise QiskitMachineLearningError(
@@ -472,26 +476,31 @@ class SamplerQNN(NeuralNetwork):
 
     def _backward(
         self,
-        input_data: np.ndarray | None,
+        input_data: QuantumCircuit | list[QuantumCircuit] | np.ndarray | None,
         weights: np.ndarray | None,
+        input_params: np.ndarray | None = None,
     ) -> tuple[np.ndarray | SparseArray | None, np.ndarray | SparseArray | None]:
         """Backward pass of the network."""
         # prepare parameters in the required format
-        parameter_values, num_samples = self._preprocess_forward(input_data, weights)
-
+        _circuits, parameter_values, num_samples, is_circ_input = self._preprocess_input(
+            input_data, weights, input_params, self._circuit
+        )
         input_grad, weights_grad = None, None
-
         if np.prod(parameter_values.shape) > 0:
-            circuits = [self._circuit] * num_samples
             job = None
             if self._input_gradients:
-                job = self.gradient.run(circuits, parameter_values)  # type: ignore[arg-type]
+                job = self.gradient.run(_circuits, parameter_values)  # type: ignore[arg-type]
             elif len(parameter_values[0]) > self._num_inputs:
-                params = [self._circuit.parameters[self._num_inputs :]] * num_samples
+                if is_circ_input and input_params is not None:
+                    params = [
+                        _circuit.parameters[len(in_param) :]
+                        for _circuit, in_param in zip(_circuits, input_params)
+                    ]
+                else:
+                    params = [_circuit.parameters[self._num_inputs :] for _circuit in _circuits]
                 job = self.gradient.run(
-                    circuits, parameter_values, parameters=params  # type: ignore[arg-type]
+                    _circuits, parameter_values, parameters=params  # type: ignore[arg-type]
                 )
-
             if job is not None:
                 try:
                     results = job.result()
