@@ -242,7 +242,7 @@ class NeuralNetwork(ABC):
             elif isinstance(input_data[0], QuantumCircuit):
                 num_samples = len(input_data)
                 _circuits = [self._compose_circs(x, ansatz) for x in input_data] * output_shape
-                parameter_values, _ = self._preprocess_forward(input_params, weights)
+                parameter_values, _ = self._preprocess_forward(input_params, weights, num_samples)
                 is_circ_input = True
             else:
                 parameter_values, num_samples = self._preprocess_forward(input_data, weights)
@@ -253,26 +253,27 @@ class NeuralNetwork(ABC):
         self,
         input_data: np.ndarray | None,
         weights: np.ndarray | None,
+        num_samples: int | None = None
     ) -> tuple[np.ndarray | None, int | None]:
         """
         Pre-processing during forward pass of the network for the primitive-based networks.
         """
         if input_data is not None:
-            num_samples = input_data.shape[0]
+            _num_samples = input_data.shape[0]
             if weights is not None:
-                weights = np.broadcast_to(weights, (num_samples, len(weights)))
+                weights = np.broadcast_to(weights, (_num_samples, len(weights)))
                 parameters = np.concatenate((input_data, weights), axis=1)
             else:
                 parameters = input_data
         else:
             if weights is not None:
-                num_samples = 1
-                parameters = np.broadcast_to(weights, (num_samples, len(weights)))
+                _num_samples = num_samples if num_samples else 1
+                parameters = np.broadcast_to(weights, (_num_samples, len(weights)))
             else:
                 # no input, no weights, just execute circuit once
-                num_samples = 1
+                _num_samples = 1
                 parameters = np.asarray([])
-        return parameters, num_samples
+        return parameters, _num_samples
 
     def _validate_weights(
         self, weights: float | list[float] | np.ndarray | None
@@ -398,12 +399,12 @@ class NeuralNetwork(ABC):
         if input_params and self.num_inputs != len(input_params):
             raise ValueError(
                 f"input_params length {len(input_params)}"
-                f" mismatch with num_inputs (self.num_inputs)"
+                f" mismatch with num_inputs ({self.num_inputs})"
             )
         if weight_params and self.num_weights != len(weight_params):
             raise ValueError(
                 f"weight_params length {len(weight_params)}"
-                f" mismatch with num_weights (self.num_weights)"
+                f" mismatch with num_weights ({self.num_weights})"
             )
 
         parameters = circuit.parameters
@@ -411,7 +412,7 @@ class NeuralNetwork(ABC):
         if len(parameters) != (self.num_inputs + self.num_weights):
             raise ValueError(
                 f"Number of circuit parameters ({len(parameters)})"
-                f" does not match the sum of number of inputs  and weights"
+                f" does not match the sum of number of inputs and weights"
                 f" ({self.num_inputs + self.num_weights})."
             )
 

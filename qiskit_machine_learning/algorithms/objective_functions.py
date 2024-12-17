@@ -52,7 +52,7 @@ class ObjectiveFunction:
         """
         super().__init__()
         self._X = X
-        self._num_samples = X.shape[0]
+        self._num_samples = X.shape[0] if isinstance(X, np.ndarray) else len(X)
         self._y = y
         self._neural_network = neural_network
         self._loss = loss

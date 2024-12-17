@@ -202,6 +202,9 @@ class EstimatorQNN(NeuralNetwork):
         if isinstance(circuit, QNNCircuit):
             self._input_params = list(circuit.input_parameters)
             self._weight_params = list(circuit.weight_parameters)
+        elif isinstance(circuit, QuantumCircuit):
+            self._input_params = []
+            self._weight_params = list(circuit.parameters)
         else:
             self._input_params = list(input_params) if input_params is not None else []
             self._weight_params = list(weight_params) if weight_params is not None else []
