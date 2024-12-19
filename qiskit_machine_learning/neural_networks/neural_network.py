@@ -180,43 +180,86 @@ class NeuralNetwork(ABC):
     def _compose_circs(
         self, input_circuit: QuantumCircuit, ansatz: QuantumCircuit
     ) -> QuantumCircuit:
-        """Compose input circuits with given ansatz."""
+        """
+        Compose input circuits with the given ansatz.
+
+        Args:
+            input_circuit (QuantumCircuit): The input quantum circuit.
+            ansatz (QuantumCircuit): The ansatz quantum circuit.
+
+        Returns:
+            QuantumCircuit: The composed quantum circuit.
+
+        Raises:
+            QiskitMachineLearningError: If the circuits cannot be composed due to mismatched qubit counts or missing pass manager.
+        """
+
+        def _validate_qubit_count(circuit1: QuantumCircuit, circuit2: QuantumCircuit) -> None:
+            """
+            Validate that two circuits have the same number of qubits.
+
+            Args:
+                circuit1 (QuantumCircuit): The first quantum circuit.
+                circuit2 (QuantumCircuit): The second quantum circuit.
+
+            Raises:
+                QiskitMachineLearningError: If the number of qubits in the circuits do not match.
+            """
+            if circuit1.num_qubits != circuit2.num_qubits:
+                raise QiskitMachineLearningError(
+                    f"Transpiled circuits need to have the same number of qubits. "
+                    f"Got {circuit1.num_qubits:d} (feature map) and {circuit2.num_qubits:d} (ansatz)."
+                )
+
+        def _compose_with_pass_manager(
+            circuit: QuantumCircuit, pass_manager: BasePassManager
+        ) -> QuantumCircuit:
+            """
+            Transpile a circuit using the provided pass manager.
+
+            Args:
+                circuit (QuantumCircuit): The quantum circuit to transpile.
+                pass_manager (BasePassManager): The pass manager to use for transpilation.
+
+            Returns:
+                QuantumCircuit: The transpiled quantum circuit.
+            """
+            return pass_manager.run(circuit)
+
+        # Check if the input circuit has a specific layout attribute
         if hasattr(input_circuit.layout, "_input_qubit_count"):
+
+            # Check if the ansatz circuit also has the layout attribute
             if hasattr(ansatz.layout, "_input_qubit_count"):
-                if ansatz.num_qubits != input_circuit.num_qubits:
-                    raise QiskitMachineLearningError(
-                        "Transpiled circuits need to have same number of qubits."
-                    )
-                circuit_ = input_circuit.compose(ansatz)
+                _validate_qubit_count(input_circuit, ansatz)
+                return input_circuit.compose(ansatz)
+            elif self.pass_manager is not None:
+                # Transpile the ansatz circuit if a pass manager is provided
+                ansatz_transpiled = _compose_with_pass_manager(ansatz, self.pass_manager)
+                return input_circuit.compose(ansatz_transpiled)
             else:
-                if self.pass_manager is not None:
-                    _isa_ansatz = self.pass_manager.run(ansatz)
-                    circuit_ = input_circuit.compose(_isa_ansatz)
-                else:
-                    raise QiskitMachineLearningError(
-                        "Both input circuits needs to be same type or "
-                        "please provide a pass manager."
-                    )
+                raise QiskitMachineLearningError(
+                    "Both input circuits need to be of the same type or provide a pass manager."
+                )
+
+        # Check if only the ansatz circuit has the layout attribute
+        elif hasattr(ansatz.layout, "_input_qubit_count"):
+            if self.pass_manager is None:
+                raise QiskitMachineLearningError(
+                    "Both input circuits need to be of the same type or provide a pass manager."
+                )
+
+            # Transpile the input circuit if a pass manager is provided
+            input_circuit_transpiled = _compose_with_pass_manager(input_circuit, self.pass_manager)
+            _validate_qubit_count(input_circuit_transpiled, ansatz)
+            return input_circuit_transpiled.compose(ansatz)
+
+        # If neither circuit has the layout attribute, compose them directly
         else:
-            if hasattr(ansatz.layout, "_input_qubit_count"):
-                if self.pass_manager is not None:
-                    _isa_fm = self.pass_manager.run(input_circuit)
-                    if ansatz.num_qubits != _isa_fm.num_qubits:
-                        raise QiskitMachineLearningError(
-                            "Transpiled circuits need to have same number of qubits."
-                            "Please ensure if you are using the same pass manager."
-                        )
-                    circuit_ = _isa_fm.compose(ansatz)
-                else:
-                    raise QiskitMachineLearningError(
-                        "Both input circuits needs to be same type or "
-                        "please provide a pass manager."
-                    )
-            else:
-                circuit_ = QuantumCircuit(ansatz.num_qubits)
-                circuit_.compose(input_circuit, inplace=True)
-                circuit_.compose(ansatz, inplace=True)
-        return circuit_
+            composed_circuit = QuantumCircuit(ansatz.num_qubits)
+            composed_circuit.compose(input_circuit, inplace=True)
+            composed_circuit.compose(ansatz, inplace=True)
+            return composed_circuit
 
     def _preprocess_input(
         self,
@@ -253,26 +296,42 @@ class NeuralNetwork(ABC):
         self,
         input_data: np.ndarray | None,
         weights: np.ndarray | None,
-        num_samples: int | None = None
+        num_samples: int | None = None,
     ) -> tuple[np.ndarray | None, int | None]:
         """
-        Pre-processing during forward pass of the network for the primitive-based networks.
+        Pre-processes input data and weights for the forward pass of the network.
+
+        Args:
+            input_data (np.ndarray | None): The input data array.
+            weights (np.ndarray | None): The weights array.
+            num_samples (int | None): The number of samples. Defaults to None.
+
+        Returns:
+            tuple[np.ndarray | None, int | None]: A tuple containing the processed parameters and the number of samples.
+
+        Raises:
+            ValueError: If input_data and weights are both None.
         """
         if input_data is not None:
+            # Determine the number of samples from the input data
             _num_samples = input_data.shape[0]
             if weights is not None:
+                # Broadcast weights to match the number of samples and concatenate with input data
                 weights = np.broadcast_to(weights, (_num_samples, len(weights)))
                 parameters = np.concatenate((input_data, weights), axis=1)
             else:
+                # Use input data as parameters if weights are not provided
                 parameters = input_data
         else:
             if weights is not None:
-                _num_samples = num_samples if num_samples else 1
+                # Use provided num_samples or default to 1 if not provided
+                _num_samples = num_samples if num_samples is not None else 1
+                # Broadcast weights to match the number of samples
                 parameters = np.broadcast_to(weights, (_num_samples, len(weights)))
             else:
-                # no input, no weights, just execute circuit once
-                _num_samples = 1
-                parameters = np.asarray([])
+                # Raise an error if both input_data and weights are None
+                raise ValueError("Both input_data and weights cannot be None.")
+
         return parameters, _num_samples
 
     def _validate_weights(
